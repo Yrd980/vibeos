@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { GenerateUiResult } from '../../shared/types';
+import type { GeneratedUiBlock, GenerateUiResult } from '../../shared/types';
 
 export interface DesktopWindow {
   windowId: string;
   appSessionId: string;
   appName: string;
   title: string;
-  html: string;
+  blocks: GeneratedUiBlock[];
   state: unknown;
   x: number;
   y: number;
@@ -82,7 +82,7 @@ export const useDesktopStore = create<DesktopStore>((set, get) => ({
           ? {
               ...window,
               title: result.title,
-              html: result.html,
+              blocks: result.blocks,
               state: result.state,
               narration: result.narration ?? null,
               loading: false

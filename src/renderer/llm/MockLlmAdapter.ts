@@ -135,13 +135,16 @@ function renderCalculator(state: CalculatorState): GenerateUiResult {
     title: 'Calculator',
     state,
     narration: null,
-    html: `
-      <div class="v-app v-calc">
-        <div class="v-display" role="status">${escapeHtml(state.display)}</div>
-        <div class="v-keypad">
-          ${keys.map((key) => `<button class="v-button" data-vibe-action="press" data-vibe-value="${escapeHtml(key)}" data-vibe-id="calc-${escapeHtml(key)}">${escapeHtml(key)}</button>`).join('')}
-        </div>
-      </div>`
+    blocks: [
+      {
+        id: 'calculator',
+        role: 'main',
+        className: 'v-app v-calc',
+        title: state.display,
+        text: 'Calculator fallback surface',
+        actions: keys.map((key) => ({ id: `calc-${key}`, label: key, value: key, variant: key === '=' ? 'primary' : 'default' }))
+      }
+    ]
   };
 }
 
@@ -154,12 +157,16 @@ function notepad(input: GenerateUiInput): GenerateUiResult {
     title: state.text ? `Notepad - ${state.text.slice(0, 18)}` : 'Notepad',
     state,
     narration: null,
-    html: `
-      <div class="v-app">
-        <div class="v-menu"><span>File</span><span>Edit</span><span>Format</span><span>View</span><span>Help</span></div>
-        <textarea class="v-textarea" data-vibe-field="text" data-vibe-id="notepad-text" aria-label="Text">${escapeHtml(state.text)}</textarea>
-        <p class="v-muted">${state.text.length} characters in this simulated document.</p>
-      </div>`
+    blocks: [
+      {
+        id: 'notepad',
+        role: 'main',
+        className: 'v-app',
+        actions: ['File', 'Edit', 'Format', 'View', 'Help'].map((label) => ({ id: `menu-${label.toLowerCase()}`, label })),
+        fields: [{ id: 'notepad-text', label: 'Text', value: state.text, multiline: true }],
+        text: `${state.text.length} characters in this simulated document.`
+      }
+    ]
   };
 }
 
@@ -182,28 +189,23 @@ function browser(input: GenerateUiInput): GenerateUiResult {
     title: `Browser - ${pageTitle}`,
     state,
     narration: null,
-    html: `
-      <div class="v-app v-browser">
-        <div class="v-toolbar">
-          <button class="v-button" data-vibe-action="nav" data-vibe-value="Back">Back</button>
-          <button class="v-button" data-vibe-action="nav" data-vibe-value="Forward">Forward</button>
-          <button class="v-button" data-vibe-action="nav" data-vibe-value="Refresh">Refresh</button>
-          <button class="v-button" data-vibe-action="nav" data-vibe-value="Home">Home</button>
-        </div>
-        <div class="v-row v-address">
-          <input class="v-input" data-vibe-field="address" data-vibe-id="browser-address" aria-label="Address" value="${escapeHtml(state.address)}" />
-          <button class="v-button v-primary" data-vibe-action="go" data-vibe-value="Go">Go</button>
-        </div>
-        <main class="v-card">
-          <h1>${escapeHtml(pageTitle)}</h1>
-          <p>This is a simulated offline browser page. No network request was made.</p>
-          <ul class="v-list">
-            <li class="v-list-item">Try vibe://encarta</li>
-            <li class="v-list-item">Try vibe://paintbox</li>
-            <li class="v-list-item">Try vibe://terminal-news</li>
-          </ul>
-        </main>
-      </div>`
+    blocks: [
+      {
+        id: 'browser',
+        role: 'main',
+        className: 'v-app v-browser',
+        title: pageTitle,
+        text: 'This is a simulated offline browser page. No network request was made.',
+        actions: ['Back', 'Forward', 'Refresh', 'Home', 'Go'].map((label) => ({
+          id: label === 'Go' ? 'go' : `nav-${label.toLowerCase()}`,
+          label,
+          value: label,
+          variant: label === 'Go' ? 'primary' : 'default'
+        })),
+        fields: [{ id: 'browser-address', label: 'Address', value: state.address }],
+        items: ['Try vibe://encarta', 'Try vibe://paintbox', 'Try vibe://terminal-news']
+      }
+    ]
   };
 }
 
@@ -221,21 +223,17 @@ function fileExplorer(input: GenerateUiInput): GenerateUiResult {
     title: `File Explorer - ${path}`,
     state,
     narration: null,
-    html: `
-      <div class="v-app v-explorer">
-        <div class="v-toolbar"><span class="v-muted">Simulated filesystem</span></div>
-        <div class="v-split">
-          <aside class="v-panel">
-            ${Object.keys(filesByPath).map((folder) => `<button class="v-button" data-vibe-action="open-folder" data-vibe-value="${folder}">${folder}</button>`).join('')}
-          </aside>
-          <main class="v-panel">
-            <h2>${path}</h2>
-            <ul class="v-list">
-              ${filesByPath[path].map((file) => `<li class="v-list-item">${file}</li>`).join('')}
-            </ul>
-          </main>
-        </div>
-      </div>`
+    blocks: [
+      {
+        id: 'file-explorer',
+        role: 'main',
+        className: 'v-app v-explorer',
+        title: path,
+        text: 'Simulated filesystem',
+        actions: Object.keys(filesByPath).map((folder) => ({ id: `open-${folder.toLowerCase()}`, label: folder, value: folder })),
+        items: filesByPath[path]
+      }
+    ]
   };
 }
 
@@ -256,14 +254,16 @@ function terminal(input: GenerateUiInput): GenerateUiResult {
     title: 'Terminal',
     state,
     narration: null,
-    html: `
-      <div class="v-app v-terminal">
-        <pre class="v-output">${escapeHtml(state.lines.join('\n'))}</pre>
-        <div class="v-row">
-          <span class="v-muted">C:\\VIBE&gt;</span>
-          <input class="v-input" data-vibe-field="command" data-vibe-id="terminal-command" aria-label="Command" value="${escapeHtml(state.command)}" />
-        </div>
-      </div>`
+    blocks: [
+      {
+        id: 'terminal',
+        role: 'main',
+        className: 'v-app v-terminal',
+        title: 'C:\\VIBE>',
+        items: state.lines,
+        fields: [{ id: 'terminal-command', label: 'Command', value: state.command }]
+      }
+    ]
   };
 }
 
@@ -306,23 +306,25 @@ function encarta(input: GenerateUiInput): GenerateUiResult {
     title: `Encarta 98 - ${state.article}`,
     state,
     narration: null,
-    html: `
-      <div class="v-app v-encarta">
-        <div class="v-row">
-          <input class="v-input" data-vibe-field="query" data-vibe-id="encarta-query" aria-label="Search" value="${escapeHtml(state.query)}" />
-          <button class="v-button v-primary" data-vibe-action="search" data-vibe-value="Search">Search</button>
-        </div>
-        <div class="v-split">
-          <aside class="v-panel">
-            ${['VibeOS', 'Artificial Desktop', 'Retro Computing', 'Simulated Files'].map((item) => `<button class="v-button" data-vibe-action="article" data-vibe-value="${item}">${item}</button>`).join('')}
-          </aside>
-          <article class="v-card">
-            <h1>${escapeHtml(state.article)}</h1>
-            <p>This simulated encyclopedia entry describes ${escapeHtml(state.article)} in a compact retro reference style.</p>
-            <p class="v-muted">Offline hallucinated article. No external source was accessed.</p>
-          </article>
-        </div>
-      </div>`
+    blocks: [
+      {
+        id: 'encarta',
+        role: 'main',
+        className: 'v-app v-encarta',
+        title: state.article,
+        text: `This simulated encyclopedia entry describes ${state.article} in a compact retro reference style.`,
+        fields: [{ id: 'encarta-query', label: 'Search', value: state.query }],
+        actions: [
+          { id: 'search', label: 'Search', value: 'Search', variant: 'primary' },
+          ...['VibeOS', 'Artificial Desktop', 'Retro Computing', 'Simulated Files'].map((item) => ({
+            id: `article-${slugify(item)}`,
+            label: item,
+            value: item
+          }))
+        ],
+        items: ['Offline hallucinated article. No external source was accessed.']
+      }
+    ]
   };
 }
 
@@ -335,16 +337,21 @@ function paint(input: GenerateUiInput): GenerateUiResult {
     title: 'Paint',
     state,
     narration: null,
-    html: `
-      <div class="v-app v-paint">
-        <div class="v-toolbar">
-          <button class="v-button v-primary" data-vibe-action="tool" data-vibe-value="Brush">Brush</button>
-          <button class="v-button" data-vibe-action="tool" data-vibe-value="Eraser">Eraser</button>
-        </div>
-        <button class="v-canvas" role="canvas" data-vibe-action="canvas" data-vibe-value="Canvas" aria-label="Canvas">
-          ${state.marks.map((mark) => `<span class="v-dot" data-vibe-id="dot-${mark.x}-${mark.y}">${mark.x},${mark.y}</span>`).join('')}
-        </button>
-      </div>`
+    blocks: [
+      {
+        id: 'paint',
+        role: 'main',
+        className: 'v-app v-paint',
+        title: 'Paint',
+        text: `Tool: ${state.tool}`,
+        actions: [
+          { id: 'tool-brush', label: 'Brush', value: 'Brush', variant: 'primary' },
+          { id: 'tool-eraser', label: 'Eraser', value: 'Eraser' },
+          { id: 'canvas', label: 'Canvas', value: 'Canvas' }
+        ],
+        items: state.marks.map((mark) => `${mark.x},${mark.y}`)
+      }
+    ]
   };
 }
 
@@ -355,19 +362,17 @@ function settings(input: GenerateUiInput): GenerateUiResult {
     title: 'Settings',
     state,
     narration: null,
-    html: `
-      <div class="v-app v-settings">
-        <div class="v-split">
-          <aside class="v-panel">
-            ${['Theme', 'Sound', 'Display', 'About'].map((item) => `<button class="v-button" data-vibe-action="section" data-vibe-value="${item}">${item}</button>`).join('')}
-          </aside>
-          <main class="v-card">
-            <h1>${escapeHtml(section)}</h1>
-            <p>These settings affect only the fictional VibeOS surface.</p>
-            <p class="v-muted">Theme: Aurora. Sound: Soft clicks. Display: Virtual CRT.</p>
-          </main>
-        </div>
-      </div>`
+    blocks: [
+      {
+        id: 'settings',
+        role: 'main',
+        className: 'v-app v-settings',
+        title: section,
+        text: 'These settings affect only the fictional VibeOS surface.',
+        actions: ['Theme', 'Sound', 'Display', 'About'].map((item) => ({ id: `section-${item.toLowerCase()}`, label: item, value: item })),
+        items: ['Theme: Aurora', 'Sound: Soft clicks', 'Display: Virtual CRT']
+      }
+    ]
   };
 }
 
@@ -398,118 +403,128 @@ function genericApp(input: GenerateUiInput): GenerateUiResult {
   const prompt = state.prompt || input.appName;
   const kind = state.kind || inferGeneratedKind(prompt);
   const subject = state.subject || inferGeneratedSubject(prompt);
-  const mainHtml = renderGeneratedSurface(kind, subject, prompt, state.panels);
+  const generatedMainBlock = createGeneratedMainBlock(kind, subject, prompt, state.panels);
   return {
     title: input.appName,
     state,
     narration: null,
-    html: `
-      <div class="v-app v-generated">
-        <div class="v-menubar"><span>File</span><span>Edit</span><span>View</span><span>Tools</span><span>Help</span></div>
-        <div class="v-toolbar">
-          <button class="v-button v-primary" data-vibe-action="sample" data-vibe-value="Show data">Show data</button>
-          <button class="v-button" data-vibe-action="sample" data-vibe-value="Add panel">Add panel</button>
-          <span class="v-muted">Offline generated surface</span>
-        </div>
-        ${mainHtml}
-        <div class="v-row">
-          <input class="v-input" data-vibe-field="prompt" data-vibe-id="generated-prompt" aria-label="Prompt" value="${escapeHtml(state.prompt)}" placeholder="Make this app into..." />
-          <button class="v-button v-primary" data-vibe-action="dream" data-vibe-value="Dream Up">Dream Up</button>
-        </div>
-        <div class="v-status-bar">Simulated by VibeOS. No network, files, accounts, or devices were accessed.</div>
-      </div>`
+    blocks: [
+      {
+        id: 'menu',
+        role: 'menubar',
+        actions: ['File', 'Edit', 'View', 'Tools', 'Help'].map((label) => ({ id: `menu-${label.toLowerCase()}`, label }))
+      },
+      {
+        id: 'toolbar',
+        role: 'toolbar',
+        text: 'Offline generated surface',
+        actions: [
+          { id: 'show-data', label: 'Show data', value: 'Show data', variant: 'primary' },
+          { id: 'add-panel', label: 'Add panel', value: 'Add panel' }
+        ]
+      },
+      generatedMainBlock,
+      {
+        id: 'prompt',
+        role: 'panel',
+        fields: [{ id: 'generated-prompt', label: 'Prompt', value: state.prompt, placeholder: 'Make this app into...' }],
+        actions: [{ id: 'dream', label: 'Dream Up', value: 'Dream Up', variant: 'primary' }]
+      },
+      {
+        id: 'status',
+        role: 'status',
+        text: 'Simulated by VibeOS. No network, files, accounts, or devices were accessed.'
+      }
+    ]
   };
 }
 
-function renderGeneratedSurface(kind: string, subject: string, prompt: string, panels: string[]): string {
+function createGeneratedMainBlock(kind: string, subject: string, prompt: string, panels: string[]): GenerateUiResult['blocks'][number] {
   if (kind === 'finance') {
-    return `
-      <div class="v-split v-finance">
-        <aside class="v-panel">
-          <h2>Accounts</h2>
-          ${['Checking', 'Savings', 'Stocks', 'Taxes'].map((name) => `<button class="v-button" data-vibe-action="account" data-vibe-value="${name}">${name}</button>`).join('')}
-        </aside>
-        <main class="v-card">
-          <h1>${escapeHtml(subject)} Money 95</h1>
-          <div class="v-balance">$42,318.09 simulated net worth</div>
-          <table class="v-table v-ledger">
-            <thead><tr><th>Date</th><th>Memo</th><th>Amount</th></tr></thead>
-            <tbody>
-              ${['Podcast royalty', 'Vintage keyboard', 'Index fund', 'Coffee meeting'].map((memo, index) => `<tr class="v-ledger-row"><td>06/${10 + index}/98</td><td>${memo}</td><td>${index === 1 || index === 3 ? '-' : '+'}$${[850, 129, 1200, 18][index]}.00</td></tr>`).join('')}
-            </tbody>
-          </table>
-        </main>
-      </div>`;
+    return {
+      id: 'main',
+      role: 'main',
+      className: 'v-app v-generated v-finance',
+      title: `${subject} Money 95`,
+      text: '$42,318.09 simulated net worth',
+      actions: ['Checking', 'Savings', 'Stocks', 'Taxes'].map((name) => ({ id: `account-${name.toLowerCase()}`, label: name, value: name })),
+      table: {
+        columns: ['Date', 'Memo', 'Amount'],
+        rows: [
+          ['06/10/98', 'Podcast royalty', '+$850.00'],
+          ['06/11/98', 'Vintage keyboard', '-$129.00'],
+          ['06/12/98', 'Index fund', '+$1200.00'],
+          ['06/13/98', 'Coffee meeting', '-$18.00']
+        ]
+      },
+      items: panels
+    };
   }
 
   if (kind === 'encyclopedia') {
-    return `
-      <div class="v-split v-encarta">
-        <aside class="v-sidebar">
-          <h2>Index</h2>
-          ${['Overview', 'Timeline', 'People', 'See also'].map((name) => `<button class="v-button" data-vibe-action="article" data-vibe-value="${name}">${name}</button>`).join('')}
-        </aside>
-        <article class="v-card v-article">
-          <h1 class="v-article-title">${escapeHtml(subject)}</h1>
-          <p>${escapeHtml(subject)} is presented here as a confident offline encyclopedia entry generated for the VibeOS demo.</p>
-          <ul class="v-list">
-            <li class="v-list-item">Origin: simulated archive note from 1998.</li>
-            <li class="v-list-item">Importance: high enough to deserve a fake sidebar.</li>
-            <li class="v-list-item">Reliability: theatrical, not factual.</li>
-          </ul>
-        </article>
-      </div>`;
+    return {
+      id: 'main',
+      role: 'main',
+      className: 'v-app v-generated v-encarta',
+      title: subject,
+      text: `${subject} is presented here as a confident offline encyclopedia entry generated for the VibeOS demo.`,
+      actions: ['Overview', 'Timeline', 'People', 'See also'].map((name) => ({ id: `article-${slugify(name)}`, label: name, value: name })),
+      items: ['Origin: simulated archive note from 1998.', 'Importance: high enough to deserve a fake sidebar.', 'Reliability: theatrical, not factual.', ...panels]
+    };
   }
 
   if (kind === 'paint') {
-    return `
-      <div class="v-paint">
-        <div class="v-toolbar-group">
-          ${['Brush', 'Eraser', 'Fill', 'Text'].map((name) => `<button class="v-tool-button v-button" data-vibe-action="tool" data-vibe-value="${name}">${name}</button>`).join('')}
-        </div>
-        <div class="v-canvas-stage">
-          <button class="v-canvas" role="canvas" data-vibe-action="canvas" data-vibe-value="Canvas" aria-label="Canvas">
-            <span class="v-shape">Preloaded ${escapeHtml(subject)} scene</span>
-            <span class="v-stroke">skyline</span><span class="v-dot">sun</span><span class="v-dot">tree</span>
-          </button>
-        </div>
-      </div>`;
+    return {
+      id: 'main',
+      role: 'main',
+      className: 'v-app v-generated v-paint',
+      title: `Preloaded ${subject} scene`,
+      text: 'Canvas contains skyline, sun, and tree marks rendered as structured fake paint data.',
+      actions: ['Brush', 'Eraser', 'Fill', 'Text', 'Canvas'].map((name) => ({ id: `tool-${slugify(name)}`, label: name, value: name })),
+      items: ['skyline', 'sun', 'tree', ...panels]
+    };
   }
 
   if (kind === 'nested') {
-    return `
-      <div class="v-desktop">
-        <button class="v-icon" data-vibe-action="open" data-vibe-value="Tiny Browser">Tiny Browser</button>
-        <button class="v-icon" data-vibe-action="open" data-vibe-value="Tiny Paint">Tiny Paint</button>
-        <div class="v-window">
-          <div class="v-window-title">${escapeHtml(subject)} Simulator</div>
-          <p>This is a contained fake desktop running inside the app window.</p>
-        </div>
-        <div class="v-taskbar">Start | ${escapeHtml(subject)} | 4:04 PM</div>
-      </div>`;
+    return {
+      id: 'main',
+      role: 'main',
+      className: 'v-app v-generated v-desktop',
+      title: `${subject} Simulator`,
+      text: 'This is a contained fake desktop running inside the app window.',
+      actions: ['Tiny Browser', 'Tiny Paint'].map((name) => ({ id: `open-${slugify(name)}`, label: name, value: name })),
+      items: ['Start', subject, '4:04 PM', ...panels]
+    };
   }
 
   if (kind === 'browser') {
-    return `
-      <div class="v-browser">
-        <div class="v-row v-address"><input class="v-input" data-vibe-field="address" value="vibe://${escapeHtml(slugify(subject))}" /><button class="v-button v-primary" data-vibe-action="go" data-vibe-value="Go">Go</button></div>
-        <div class="v-search-results">
-          ${['Official-looking home page', 'Archived fan site', 'Offline screenshots'].map((name) => `<button class="v-search-result" data-vibe-action="result" data-vibe-value="${name}"><strong>${escapeHtml(subject)} - ${name}</strong><span class="v-muted">Generated local search result for ${escapeHtml(prompt)}.</span></button>`).join('')}
-        </div>
-      </div>`;
+    return {
+      id: 'main',
+      role: 'main',
+      className: 'v-app v-generated v-browser',
+      title: `Search results for ${subject}`,
+      text: `Generated local search result for ${prompt}.`,
+      fields: [{ id: 'address', label: 'Address', value: `vibe://${slugify(subject)}` }],
+      actions: [
+        { id: 'go', label: 'Go', value: 'Go', variant: 'primary' },
+        ...['Official-looking home page', 'Archived fan site', 'Offline screenshots'].map((name) => ({
+          id: `result-${slugify(name)}`,
+          label: name,
+          value: name
+        }))
+      ],
+      items: panels
+    };
   }
 
-  return `
-    <div class="v-card">
-      <h1>${escapeHtml(subject)}</h1>
-      <p>${escapeHtml(prompt)} has been generated as a complete retro utility surface.</p>
-      <div class="v-grid">
-        ${['Control panel', 'Live output', 'Simulated records'].map((name) => `<div class="v-panel"><h2>${name}</h2><p class="v-muted">${escapeHtml(subject)} data is invented locally.</p></div>`).join('')}
-      </div>
-      <ul class="v-list">
-        ${panels.map((panel) => `<li class="v-list-item">${escapeHtml(panel)}</li>`).join('')}
-      </ul>
-    </div>`;
+  return {
+    id: 'main',
+    role: 'main',
+    className: 'v-app v-generated',
+    title: subject,
+    text: `${prompt} has been generated as a complete retro utility surface.`,
+    items: ['Control panel', 'Live output', 'Simulated records', ...panels]
+  };
 }
 
 function inferGeneratedKind(prompt: string): string {
@@ -546,13 +561,4 @@ function normalizeObject<T extends Record<string, unknown>>(value: unknown, fall
     return { ...fallback };
   }
   return { ...fallback, ...(value as Partial<T>) };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }

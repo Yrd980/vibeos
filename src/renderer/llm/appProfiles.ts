@@ -1,3 +1,6 @@
+import { APP_CATALOG, APP_NAMES } from '../apps/catalog';
+import type { BuiltInAppName } from '../apps/catalog';
+
 export interface AppProfile {
   appName: string;
   visualStyle: string;
@@ -38,7 +41,7 @@ const FALLBACK_KINDS = [
     words: ['paint', 'draw', 'drawing', 'canvas', 'sketch', 'art'],
     visualStyle: 'MS Paint-style drawing program with toolbox, color palette, canvas, and a preloaded fake scene when requested',
     behaviorHints: [
-      'Represent drawings with harmless HTML blocks, dots, strokes, swatches, and labels.',
+      'Represent drawings with structured canvas, dot, stroke, swatch, and label blocks.',
       'If the prompt asks for an existing drawing, render a specific simulated picture immediately.'
     ]
   },
@@ -71,56 +74,53 @@ const FALLBACK_KINDS = [
   }
 ] as const;
 
-export const APP_PROFILES: AppProfile[] = [
-  {
-    appName: 'Calculator',
+const BUILT_IN_APP_PROFILE_BY_NAME: Record<BuiltInAppName, Omit<AppProfile, 'appName'>> = {
+  [APP_NAMES.CALCULATOR]: {
     visualStyle: 'retro calculator with a large segmented display and compact keypad',
     behaviorHints: ['Use buttons 0-9, +, -, *, /, =, and C.', 'Keep state for display, operand, operator, and waitingForOperand.'],
     initialState: { display: '0', operand: null, operator: null, waitingForOperand: false }
   },
-  {
-    appName: 'Notepad',
+  [APP_NAMES.NOTEPAD]: {
     visualStyle: 'plain text editor with a simple menu bar',
     behaviorHints: ['Use a textarea-like editor.', 'Store text content in state.text.'],
     initialState: { text: '' }
   },
-  {
-    appName: 'Browser',
+  [APP_NAMES.BROWSER]: {
     visualStyle: 'fake retro web browser with address bar and offline pages',
     behaviorHints: ['Never access the real internet.', 'Simulate pages and clearly present them as local hallucinated pages.'],
     initialState: { address: 'vibe://home', page: 'home' }
   },
-  {
-    appName: 'File Explorer',
+  [APP_NAMES.FILE_EXPLORER]: {
     visualStyle: 'classic file explorer with folder tree and file list',
     behaviorHints: ['Never access the real filesystem.', 'Use simulated folders like Desktop, Documents, Pictures, and System.'],
     initialState: { path: 'Desktop', selected: null }
   },
-  {
-    appName: 'Terminal',
+  [APP_NAMES.TERMINAL]: {
     visualStyle: 'fake command prompt with dark output pane',
     behaviorHints: ['Simulate commands only.', 'Support help, dir, echo, date, vibe, and clear.'],
     initialState: { lines: ['VibeOS Prompt [simulated]', 'Type help for fake commands.'], command: '' }
   },
-  {
-    appName: 'Encarta 98',
+  [APP_NAMES.ENCARTA_98]: {
     visualStyle: 'encyclopedia article with left navigation and search',
     behaviorHints: ['Simulate offline encyclopedia articles.', 'Use concise retro educational prose.'],
     initialState: { query: 'VibeOS', article: 'VibeOS' }
   },
-  {
-    appName: 'Paint',
+  [APP_NAMES.PAINT]: {
     visualStyle: 'simple paint program with toolbar and canvas',
-    behaviorHints: ['Represent brush marks with harmless HTML elements.', 'Store brush marks in state.marks.'],
+    behaviorHints: ['Represent brush marks with structured canvas, dot, and stroke blocks.', 'Store brush marks in state.marks.'],
     initialState: { tool: 'brush', marks: [] }
   },
-  {
-    appName: 'Settings',
+  [APP_NAMES.SETTINGS]: {
     visualStyle: 'fake system settings panel',
     behaviorHints: ['Show theme, sound, display, and about sections.', 'Do not affect the host system.'],
     initialState: { theme: 'Aurora', sound: 'Soft clicks', display: 'Virtual CRT' }
   }
-];
+};
+
+export const APP_PROFILES: AppProfile[] = APP_CATALOG.map(({ appName }) => ({
+  appName,
+  ...BUILT_IN_APP_PROFILE_BY_NAME[appName]
+}));
 
 export function getAppProfile(appName: string): AppProfile {
   return APP_PROFILES.find((profile) => profile.appName === appName) ?? buildFallbackProfile(appName);
@@ -140,7 +140,7 @@ function buildFallbackProfile(appName: string): AppProfile {
     behaviorHints: [
       'Create a complete first screen immediately, as if this arbitrary retro app already exists on VibeOS.',
       'Invent plausible offline data, labels, menus, sample records, tool output, and empty states that fit the prompt.',
-      'Use safe semantic controls with data-vibe-action and data-vibe-field attributes.',
+      'Use safe semantic actions and fields that the renderer can turn into delegated controls.',
       'Never imply real internet, filesystem, terminal, device, or account access; label external facts and live data as simulated.',
       ...(kind?.behaviorHints ?? [
         'Prefer a classic menu or toolbar, one strong content area, useful controls, and a bottom status bar.'

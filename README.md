@@ -13,6 +13,7 @@ Current first-phase behavior:
 - Recently generated app prompts are tracked in renderer state so they can be relaunched quickly.
 - Unknown generated apps receive inferred profiles for finance ledgers, encyclopedia articles, browser/search pages, paint canvases, setup wizards, nested desktops, and snarky utilities.
 - Generated app startup falls back to prompt-aware local UI when the model provider is unavailable, so `Ask VibeOS` still opens a usable retro app instead of an error panel.
+- Generated app UI uses structured content blocks, not raw model HTML. The renderer owns the React output and delegated event attributes.
 - Calculator, Browser, and Notepad are local React runtimes. Calculator shows pending operators such as `7 *` and accepts both button clicks and keyboard input.
 - The local Browser runtime stays responsive but renders richer hallucinated search/article pages for external-looking addresses and search queries.
 
@@ -53,28 +54,35 @@ bun run preview    # Preview the production build
 
 ## Security Model
 
-- LLM HTML is treated as untrusted.
-- The renderer sanitizes generated HTML with a strict allowlist.
-- Model JavaScript, iframes, forms, remote resources, inline handlers, and arbitrary CSS are stripped.
+- LLM output is structured data only. Generated apps return `GenerateUiResult.blocks`, not raw HTML, scripts, styles, or markup fragments.
+- `AppViewport` renders every generated block as React. Text, labels, list items, table cells, and field values stay plain strings.
+- Generated blocks may request only known renderer vocabulary: safe class names, block roles, actions, fields, lists, text, and tables.
+- The model can provide action and field identifiers, but the renderer owns the actual React elements and `data-vibe-*` event attributes.
+- Model JavaScript, iframes, forms, remote resources, inline handlers, arbitrary CSS, raw HTML, filesystem access, and real network access are outside the generated app contract.
 - Local-runtime apps use React controls and renderer state for routine interaction.
-- Generated app surfaces use delegated events and send only small structured events to the browser-side session adapter.
+- Generated app surfaces use delegated events and send only small structured event objects plus current generated state back to the browser-side session adapter.
 
 ## Architecture
 
 ```text
-src/renderer    React desktop shell and safe app viewport
-src/renderer/llm Browser-side mock, hybrid, and DeepSeek adapters
-src/shared      app event and generated UI result types
+src/renderer/apps        app catalog and launch metadata
+src/renderer/components  desktop shell, window chrome, local runtimes, and AppViewport
+src/renderer/llm         browser-side mock, hybrid, and DeepSeek adapters
+src/renderer/utils       generated session API and safe UI vocabulary
+src/shared               app event and generated UI result types
 ```
 
 Runtime flow:
 
 ```text
 user click or input
-  -> renderer desktop/window shell
-  -> local runtime when the app is Calculator, Browser, or Notepad
-  -> browser-side LLM adapter only for generated or imagined app surfaces
-  -> sanitized generated HTML fallback for model-built apps
+  -> renderer desktop, taskbar, start menu, or window chrome
+  -> app catalog resolves the launch target
+  -> AppWindowContent chooses a local runtime or generated viewport
+  -> LocalAppRuntime handles Calculator, Browser, and Notepad entirely in React
+  -> vibeosApi manages generated app sessions, request queueing, and cache hydration
+  -> mock, hybrid, or DeepSeek adapter returns structured generated blocks
+  -> AppViewport renders the blocks and delegates safe events back into the session
 ```
 
 Reference-demo behavior:
@@ -87,11 +95,24 @@ user asks for an app or topic
   -> the renderer keeps the shell stable while the generated app sells the illusion
 ```
 
-Local-runtime apps live in `src/renderer/components/LocalAppRuntime.tsx`. They use normal React controls and renderer state, so routine typing and clicks do not rebuild the DOM from model HTML.
+Local-runtime apps live in `src/renderer/components/LocalAppRuntime.tsx`. They use normal React controls and renderer state, so routine typing and clicks do not rebuild the DOM from model output.
 
 Browser is currently a hybrid demo prop: its chrome and address entry stay local, while external-looking routes are rendered as simulated offline search results or articles. It does not access the real internet.
 
-Generated apps still use `GenerateUiResult { title, html, state, narration }` for compatibility. Their HTML is sanitized and rendered through `AppViewport`. Initial generated app results are cached in browser memory so reopening the same generated app can hydrate a new session without waiting for the model again.
+Generated apps use the blocks-only protocol:
+
+```ts
+GenerateUiResult {
+  title: string;
+  state: unknown;
+  narration?: string | null;
+  blocks: GeneratedUiBlock[];
+}
+```
+
+Each `GeneratedUiBlock` has an `id`, a role such as `menubar`, `toolbar`, `sidebar`, `main`, `panel`, `status`, or `dialog`, and optional structured content: `title`, `text`, `items`, `actions`, `fields`, `table`, and a safe `className`. Actions expose `id`, `label`, optional `value`, and a limited variant. Fields expose `id`, `label`, string `value`, optional `placeholder`, and optional multiline mode.
+
+There is no compatibility HTML channel. Generated app behavior is expressed through structured blocks plus delegated `click`, `input`, `submit`, and `keyboard` events. Initial generated app results are cached in browser memory so reopening the same generated app can hydrate a new session without waiting for the model again.
 
 ## Experience Targets
 
@@ -102,22 +123,3 @@ Generated apps still use `GenerateUiResult { title, html, state, narration }` fo
 - Keep simulated browsing obviously offline and model-generated. The answer to "is this AI?" should always be yes.
 - Support built-in classics such as Notepad, Calculator, and Browser as fast local props for the demo, while generated apps provide the hallucinated spectacle.
 - Favor continuity over correctness: reopening the same generated app should preserve the illusion through cached or hydrated state.
-
-## Verification
-
-After code changes, run:
-
-```powershell
-bun run typecheck
-bun run build
-```
-
-Useful UI smoke checks:
-
-- Calculator: `7 * 8 = 56` and no `Thinking` badge.
-- Calculator: after pressing `7` then `*`, the expression row shows `7 *`; keyboard input supports digits, `/`, `*`, `+`, `-`, `.`, `C`, and `Enter`.
-- Notepad: typing keeps textarea focus and updates the title.
-- Browser: clicking the address bar selects the current address; Enter and Go navigate simulated `vibe://` pages or hallucinated search/article pages such as `google.com/search?q=Hanselman+Wikipedia`.
-- Start menu/taskbar: `Ask VibeOS` can launch a custom generated prompt, and generated prompts appear in Recent.
-- Start menu/taskbar: with the model provider unavailable, `Ask VibeOS` still opens a prompt-specific local fallback UI rather than `Could not start app`.
-- Clicking visible window content brings that window to the front.

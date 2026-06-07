@@ -11,7 +11,7 @@ const adapter = createAdapter();
 type WebAppSession = {
   appName: string;
   currentTitle?: string;
-  currentHtml?: string;
+  currentBlocks?: GenerateUiResult['blocks'] | null;
   currentState?: unknown;
   queue: Promise<unknown>;
 };
@@ -68,7 +68,7 @@ async function runTurn(appSessionId: string, event: AppEvent): Promise<GenerateU
     appSessionId,
     appName: session.appName,
     currentTitle: session.currentTitle,
-    currentHtml: session.currentHtml,
+    currentBlocks: session.currentBlocks,
     currentState: session.currentState,
     event
   };
@@ -83,7 +83,7 @@ function hydrateSession(appSessionId: string, result: GenerateUiResult): void {
     return;
   }
   session.currentTitle = result.title;
-  session.currentHtml = result.html;
+  session.currentBlocks = result.blocks;
   session.currentState = result.state;
 }
 
@@ -108,8 +108,8 @@ function cacheKey(appName: string): string {
 function cloneGenerateUiResult(result: GenerateUiResult): GenerateUiResult {
   return {
     title: result.title,
-    html: result.html,
     state: structuredClone(result.state),
-    narration: result.narration ?? null
+    narration: result.narration ?? null,
+    blocks: structuredClone(result.blocks)
   };
 }

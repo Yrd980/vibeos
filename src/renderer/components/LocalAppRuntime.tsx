@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
+import { APP_NAMES, isLocalRuntimeAppName } from '../apps/catalog';
+import type { LocalRuntimeAppName } from '../apps/catalog';
 
-export type LocalRuntimeAppName = 'Calculator' | 'Browser' | 'Notepad';
+export type { LocalRuntimeAppName } from '../apps/catalog';
 
 export type CalculatorRuntimeState = {
   display: string;
@@ -25,7 +27,7 @@ export type LocalRuntimeResult = {
   title: string;
   state: LocalRuntimeState;
   narration: string | null;
-  html: string;
+  blocks: [];
 };
 
 export interface LocalAppRuntimeProps {
@@ -39,7 +41,6 @@ type CalculatorOperator = '+' | '-' | '*' | '/';
 type CalculatorKey = CalculatorOperator | '=' | 'C' | '.' | `${number}`;
 type BrowserPageKind = 'home' | 'search' | 'article' | 'external';
 
-const LOCAL_RUNTIME_APPS: LocalRuntimeAppName[] = ['Calculator', 'Browser', 'Notepad'];
 const CALCULATOR_KEYS: CalculatorKey[] = ['C', '/', '*', '-', '7', '8', '9', '+', '4', '5', '6', '=', '1', '2', '3', '0', '.'];
 
 export default function LocalAppRuntime({
@@ -60,15 +61,15 @@ export default function LocalAppRuntime({
     }
   }
 
-  if (appName === 'Calculator') {
+  if (appName === APP_NAMES.CALCULATOR) {
     return <CalculatorRuntime state={normalizeCalculatorState(runtimeState)} onChange={commit} />;
   }
 
-  if (appName === 'Browser') {
+  if (appName === APP_NAMES.BROWSER) {
     return <BrowserRuntime state={normalizeBrowserState(runtimeState)} onChange={commit} />;
   }
 
-  if (appName === 'Notepad') {
+  if (appName === APP_NAMES.NOTEPAD) {
     return <NotepadRuntime state={normalizeNotepadState(runtimeState)} onChange={commit} />;
   }
 
@@ -83,16 +84,16 @@ export default function LocalAppRuntime({
 }
 
 export function isLocalRuntimeApp(appName: string): appName is LocalRuntimeAppName {
-  return LOCAL_RUNTIME_APPS.includes(appName as LocalRuntimeAppName);
+  return isLocalRuntimeAppName(appName);
 }
 
 export function createInitialLocalRuntimeState(appName: LocalRuntimeAppName): LocalRuntimeState {
   switch (appName) {
-    case 'Calculator':
+    case APP_NAMES.CALCULATOR:
       return createInitialCalculatorState();
-    case 'Browser':
+    case APP_NAMES.BROWSER:
       return createInitialBrowserState();
-    case 'Notepad':
+    case APP_NAMES.NOTEPAD:
       return createInitialNotepadState();
   }
 }
@@ -103,7 +104,7 @@ export function createLocalRuntimeResult(appName: LocalRuntimeAppName, state: Lo
     title: createLocalRuntimeTitle(appName, normalizedState),
     state: normalizedState,
     narration: null,
-    html: ''
+    blocks: []
   };
 }
 
@@ -403,11 +404,11 @@ function NotepadRuntime({
 
 function normalizeLocalRuntimeState(appName: string, state: unknown): LocalRuntimeState {
   switch (appName) {
-    case 'Calculator':
+    case APP_NAMES.CALCULATOR:
       return normalizeCalculatorState(state);
-    case 'Browser':
+    case APP_NAMES.BROWSER:
       return normalizeBrowserState(state);
-    case 'Notepad':
+    case APP_NAMES.NOTEPAD:
       return normalizeNotepadState(state);
     default:
       return createInitialNotepadState();
@@ -659,15 +660,15 @@ function createFakeFacts(subject: string): string[] {
 
 function createLocalRuntimeTitle(appName: LocalRuntimeAppName, state: LocalRuntimeState): string {
   switch (appName) {
-    case 'Calculator':
-      return 'Calculator';
-    case 'Browser': {
+    case APP_NAMES.CALCULATOR:
+      return APP_NAMES.CALCULATOR;
+    case APP_NAMES.BROWSER: {
       const browserState = normalizeBrowserState(state);
-      return `Browser - ${createBrowserPageTitle(browserState.address, browserState.page)}`;
+      return `${APP_NAMES.BROWSER} - ${createBrowserPageTitle(browserState.address, browserState.page)}`;
     }
-    case 'Notepad': {
+    case APP_NAMES.NOTEPAD: {
       const notepadState = normalizeNotepadState(state);
-      return notepadState.text ? `Notepad - ${notepadState.text.slice(0, 18)}` : 'Notepad';
+      return notepadState.text ? `${APP_NAMES.NOTEPAD} - ${notepadState.text.slice(0, 18)}` : APP_NAMES.NOTEPAD;
     }
   }
 }

@@ -1,7 +1,8 @@
+import { DESKTOP_APP_NAMES, getAppIcon, getInitialWindowSize, isBuiltInApp } from '../apps/catalog';
 import { useDesktopStore } from '../state/desktopStore';
 import { getVibeOsApi } from '../utils/vibeosApi';
 import { createInitialLocalRuntimeState, createLocalRuntimeResult, isLocalRuntimeApp } from './LocalAppRuntime';
-import StartMenu, { APPS, ICONS } from './StartMenu';
+import StartMenu from './StartMenu';
 import Taskbar from './Taskbar';
 import WindowFrame from './WindowFrame';
 
@@ -21,7 +22,8 @@ export default function Desktop(): React.JSX.Element {
     setStartMenuOpen(false);
     const index = windows.length;
     const windowId = crypto.randomUUID();
-    const isBuiltIn = APPS.includes(normalizedAppName);
+    const isBuiltIn = isBuiltInApp(normalizedAppName);
+    const initialWindowSize = getInitialWindowSize(normalizedAppName);
     if (isLocalRuntimeApp(normalizedAppName)) {
       const localState = createInitialLocalRuntimeState(normalizedAppName);
       const localResult = createLocalRuntimeResult(normalizedAppName, localState);
@@ -30,12 +32,12 @@ export default function Desktop(): React.JSX.Element {
         appSessionId: windowId,
         appName: normalizedAppName,
         title: localResult.title,
-        html: localResult.html,
+        blocks: [],
         state: localResult.state,
         x: 72 + (index % 5) * 34,
         y: 54 + (index % 5) * 28,
-        width: normalizedAppName === 'Browser' ? 720 : 520,
-        height: normalizedAppName === 'Browser' ? 460 : 380,
+        width: initialWindowSize.width,
+        height: initialWindowSize.height,
         minimized: false,
         maximized: false,
         loading: false,
@@ -50,12 +52,12 @@ export default function Desktop(): React.JSX.Element {
       appSessionId: windowId,
       appName: normalizedAppName,
       title: isBuiltIn ? `Opening ${normalizedAppName}` : `Generating ${normalizedAppName}`,
-      html: isBuiltIn ? openingHtml(normalizedAppName) : generatingHtml(normalizedAppName),
+      blocks: isBuiltIn ? openingBlocks(normalizedAppName) : generatingBlocks(normalizedAppName),
       state: {},
       x: 72 + (index % 5) * 34,
       y: 54 + (index % 5) * 28,
-      width: normalizedAppName === 'Encarta 98' || normalizedAppName === 'Browser' || !isBuiltIn ? 720 : 520,
-      height: normalizedAppName === 'Encarta 98' || normalizedAppName === 'Browser' || !isBuiltIn ? 460 : 380,
+      width: initialWindowSize.width,
+      height: initialWindowSize.height,
       minimized: false,
       maximized: false,
       loading: true,
@@ -67,7 +69,7 @@ export default function Desktop(): React.JSX.Element {
       useDesktopStore.getState().updateWindow(windowId, {
         appSessionId: session.appSessionId,
         title: session.result.title,
-        html: session.result.html,
+        blocks: session.result.blocks,
         state: session.result.state,
         narration: session.result.narration ?? null,
         loading: false
@@ -75,13 +77,15 @@ export default function Desktop(): React.JSX.Element {
     } catch (error) {
       useDesktopStore.getState().updateWindow(windowId, {
         title: `${normalizedAppName} - Error`,
-        html: `
-          <div class="v-app">
-            <div class="v-card">
-              <h1>Could not start app</h1>
-              <p class="v-muted">${String(error).replace(/[<>&"']/g, '')}</p>
-            </div>
-          </div>`,
+        blocks: [
+          {
+            id: 'error',
+            role: 'main',
+            className: 'v-app',
+            title: 'Could not start app',
+            text: String(error).replace(/[<>&"']/g, '')
+          }
+        ],
         loading: false
       });
     }
@@ -90,9 +94,9 @@ export default function Desktop(): React.JSX.Element {
   return (
     <div className="desktop" onClick={() => startMenuOpen && setStartMenuOpen(false)}>
       <div className="desktop-icons">
-        {APPS.slice(0, 6).map((appName) => (
+        {DESKTOP_APP_NAMES.map((appName) => (
           <button key={appName} className="desktop-icon" onClick={(event) => { event.stopPropagation(); void launchApp(appName); }}>
-            <span className="desktop-icon-box">{ICONS[appName]}</span>
+            <span className="desktop-icon-box">{getAppIcon(appName)}</span>
             <span>{appName}</span>
           </button>
         ))}
@@ -115,31 +119,27 @@ export default function Desktop(): React.JSX.Element {
   );
 }
 
-function openingHtml(appName: string): string {
-  return `<div class="v-app v-generated"><h1>${escapeHtml(appName)}</h1><p class="v-muted">Loading local app surface...</p></div>`;
+function openingBlocks(appName: string) {
+  return [
+    {
+      id: 'opening',
+      role: 'main' as const,
+      className: 'v-app v-generated',
+      title: appName,
+      text: 'Loading local app surface...'
+    }
+  ];
 }
 
-function generatingHtml(appName: string): string {
-  return `
-    <div class="v-app v-generated">
-      <div class="v-card">
-        <h1>${escapeHtml(appName)}</h1>
-        <p>VibeOS is hallucinating a new app shell.</p>
-        <ul class="v-list">
-          <li class="v-list-item">Sketching controls</li>
-          <li class="v-list-item">Inventing state model</li>
-          <li class="v-list-item">Binding safe HTML events</li>
-        </ul>
-        <p class="v-muted">Built-in apps are instant; generated apps use the model.</p>
-      </div>
-    </div>`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function generatingBlocks(appName: string) {
+  return [
+    {
+      id: 'generating',
+      role: 'main' as const,
+      className: 'v-app v-generated',
+      title: appName,
+      text: 'VibeOS is hallucinating a new app shell.',
+      items: ['Sketching controls', 'Inventing state model', 'Binding safe events']
+    }
+  ];
 }

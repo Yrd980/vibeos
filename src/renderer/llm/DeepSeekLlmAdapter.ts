@@ -6,11 +6,49 @@ import {
   buildRepairPrompt
 } from './promptTemplates';
 
+const GeneratedUiBlockSchema = z.object({
+  id: z.string().min(1).max(80),
+  role: z.enum(['menubar', 'toolbar', 'sidebar', 'main', 'panel', 'status', 'dialog']),
+  className: z.string().max(200).optional(),
+  title: z.string().max(160).optional(),
+  text: z.string().max(2000).optional(),
+  items: z.array(z.string().max(400)).max(30).optional(),
+  actions: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(80),
+        label: z.string().min(1).max(120),
+        value: z.string().max(240).optional(),
+        variant: z.enum(['default', 'primary', 'danger']).optional()
+      })
+    )
+    .max(20)
+    .optional(),
+  fields: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(80),
+        label: z.string().min(1).max(120),
+        value: z.string().max(10000),
+        placeholder: z.string().max(240).optional(),
+        multiline: z.boolean().optional()
+      })
+    )
+    .max(12)
+    .optional(),
+  table: z
+    .object({
+      columns: z.array(z.string().max(80)).min(1).max(8),
+      rows: z.array(z.array(z.string().max(240)).max(8)).max(30)
+    })
+    .optional()
+});
+
 const GenerateUiResultSchema = z.object({
   title: z.string().min(1).max(120),
-  html: z.string().max(60000),
   state: z.unknown(),
-  narration: z.string().nullable().optional()
+  narration: z.string().nullable().optional(),
+  blocks: z.array(GeneratedUiBlockSchema).min(1).max(20)
 });
 const REQUEST_TIMEOUT_MS = 12000;
 const DEEPSEEK_PROXY_BASE_URL = '/deepseek-api';
@@ -103,9 +141,9 @@ function parseGenerateUiResult(content: string): GenerateUiResult {
   }
   return {
     title: result.data.title,
-    html: result.data.html,
     state: result.data.state,
-    narration: result.data.narration ?? null
+    narration: result.data.narration ?? null,
+    blocks: result.data.blocks
   };
 }
 
@@ -120,13 +158,14 @@ function safeErrorUi(appName: string, message: string): GenerateUiResult {
     title: `${appName} - Provider Error`,
     state: { error: safeMessage },
     narration: safeMessage,
-    html: `
-      <div class="v-app">
-        <div class="v-card">
-          <h1>Provider unavailable</h1>
-          <p>The DeepSeek adapter could not produce a valid UI frame.</p>
-          <p class="v-muted">${safeMessage}</p>
-        </div>
-      </div>`
+    blocks: [
+      {
+        id: 'provider-error',
+        role: 'main',
+        className: 'v-app',
+        title: 'Provider unavailable',
+        text: `The DeepSeek adapter could not produce valid UI blocks. ${safeMessage}`
+      }
+    ]
   };
 }
