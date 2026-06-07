@@ -12,6 +12,7 @@ type BrowserState = { address: string; page: string };
 type TerminalState = { lines: string[]; command: string };
 type EncartaState = { query: string; article: string };
 type PaintState = { tool: string; marks: Array<{ x: number; y: number }> };
+type GeneratedState = { mode: string; prompt: string; kind: string; subject: string; panels: string[] };
 
 export class MockLlmAdapter implements LlmAdapter {
   async generateNextUi(input: GenerateUiInput): Promise<GenerateUiResult> {
@@ -371,9 +372,11 @@ function settings(input: GenerateUiInput): GenerateUiResult {
 }
 
 function genericApp(input: GenerateUiInput): GenerateUiResult {
-  const state = normalizeObject<{ mode: string; prompt: string; panels: string[] }>(input.currentState, {
-    mode: 'starter',
-    prompt: '',
+  const state = normalizeObject<GeneratedState>(input.currentState, {
+    mode: 'generated',
+    prompt: input.appName,
+    kind: inferGeneratedKind(input.appName),
+    subject: inferGeneratedSubject(input.appName),
     panels: []
   });
   if (input.event.type === 'input') {
@@ -387,32 +390,155 @@ function genericApp(input: GenerateUiInput): GenerateUiResult {
     if (action === 'Show data') {
       state.panels = [...state.panels, `Data snapshot: ${new Date().toLocaleTimeString()} simulated rows ready`].slice(-6);
     }
+    if (action === 'Dream Up') {
+      state.kind = inferGeneratedKind(state.prompt || input.appName);
+      state.subject = inferGeneratedSubject(state.prompt || input.appName);
+    }
   }
+  const prompt = state.prompt || input.appName;
+  const kind = state.kind || inferGeneratedKind(prompt);
+  const subject = state.subject || inferGeneratedSubject(prompt);
+  const mainHtml = renderGeneratedSurface(kind, subject, prompt, state.panels);
   return {
     title: input.appName,
     state,
     narration: null,
     html: `
       <div class="v-app v-generated">
-        <div class="v-card">
-          <h1>${escapeHtml(input.appName)}</h1>
-          <p>This generated starter app is usable immediately. Describe what it should do, then press Enter or Dream Up.</p>
-          <div class="v-row">
-            <input class="v-input" data-vibe-field="prompt" data-vibe-id="generated-prompt" aria-label="Prompt" value="${escapeHtml(state.prompt)}" placeholder="Make this app into..." />
-            <button class="v-button v-primary" data-vibe-action="dream" data-vibe-value="Dream Up">Dream Up</button>
-          </div>
-          <div class="v-panel">
-            <h2>Live surface</h2>
-            <p class="v-muted">The local shell stays responsive; the model only expands this app when you ask.</p>
-            <button class="v-button" data-vibe-action="sample" data-vibe-value="Add panel">Add panel</button>
-            <button class="v-button" data-vibe-action="sample" data-vibe-value="Show data">Show data</button>
-            <ul class="v-list">
-              ${state.panels.map((panel) => `<li class="v-list-item">${escapeHtml(panel)}</li>`).join('')}
-            </ul>
-          </div>
+        <div class="v-menubar"><span>File</span><span>Edit</span><span>View</span><span>Tools</span><span>Help</span></div>
+        <div class="v-toolbar">
+          <button class="v-button v-primary" data-vibe-action="sample" data-vibe-value="Show data">Show data</button>
+          <button class="v-button" data-vibe-action="sample" data-vibe-value="Add panel">Add panel</button>
+          <span class="v-muted">Offline generated surface</span>
         </div>
+        ${mainHtml}
+        <div class="v-row">
+          <input class="v-input" data-vibe-field="prompt" data-vibe-id="generated-prompt" aria-label="Prompt" value="${escapeHtml(state.prompt)}" placeholder="Make this app into..." />
+          <button class="v-button v-primary" data-vibe-action="dream" data-vibe-value="Dream Up">Dream Up</button>
+        </div>
+        <div class="v-status-bar">Simulated by VibeOS. No network, files, accounts, or devices were accessed.</div>
       </div>`
   };
+}
+
+function renderGeneratedSurface(kind: string, subject: string, prompt: string, panels: string[]): string {
+  if (kind === 'finance') {
+    return `
+      <div class="v-split v-finance">
+        <aside class="v-panel">
+          <h2>Accounts</h2>
+          ${['Checking', 'Savings', 'Stocks', 'Taxes'].map((name) => `<button class="v-button" data-vibe-action="account" data-vibe-value="${name}">${name}</button>`).join('')}
+        </aside>
+        <main class="v-card">
+          <h1>${escapeHtml(subject)} Money 95</h1>
+          <div class="v-balance">$42,318.09 simulated net worth</div>
+          <table class="v-table v-ledger">
+            <thead><tr><th>Date</th><th>Memo</th><th>Amount</th></tr></thead>
+            <tbody>
+              ${['Podcast royalty', 'Vintage keyboard', 'Index fund', 'Coffee meeting'].map((memo, index) => `<tr class="v-ledger-row"><td>06/${10 + index}/98</td><td>${memo}</td><td>${index === 1 || index === 3 ? '-' : '+'}$${[850, 129, 1200, 18][index]}.00</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </main>
+      </div>`;
+  }
+
+  if (kind === 'encyclopedia') {
+    return `
+      <div class="v-split v-encarta">
+        <aside class="v-sidebar">
+          <h2>Index</h2>
+          ${['Overview', 'Timeline', 'People', 'See also'].map((name) => `<button class="v-button" data-vibe-action="article" data-vibe-value="${name}">${name}</button>`).join('')}
+        </aside>
+        <article class="v-card v-article">
+          <h1 class="v-article-title">${escapeHtml(subject)}</h1>
+          <p>${escapeHtml(subject)} is presented here as a confident offline encyclopedia entry generated for the VibeOS demo.</p>
+          <ul class="v-list">
+            <li class="v-list-item">Origin: simulated archive note from 1998.</li>
+            <li class="v-list-item">Importance: high enough to deserve a fake sidebar.</li>
+            <li class="v-list-item">Reliability: theatrical, not factual.</li>
+          </ul>
+        </article>
+      </div>`;
+  }
+
+  if (kind === 'paint') {
+    return `
+      <div class="v-paint">
+        <div class="v-toolbar-group">
+          ${['Brush', 'Eraser', 'Fill', 'Text'].map((name) => `<button class="v-tool-button v-button" data-vibe-action="tool" data-vibe-value="${name}">${name}</button>`).join('')}
+        </div>
+        <div class="v-canvas-stage">
+          <button class="v-canvas" role="canvas" data-vibe-action="canvas" data-vibe-value="Canvas" aria-label="Canvas">
+            <span class="v-shape">Preloaded ${escapeHtml(subject)} scene</span>
+            <span class="v-stroke">skyline</span><span class="v-dot">sun</span><span class="v-dot">tree</span>
+          </button>
+        </div>
+      </div>`;
+  }
+
+  if (kind === 'nested') {
+    return `
+      <div class="v-desktop">
+        <button class="v-icon" data-vibe-action="open" data-vibe-value="Tiny Browser">Tiny Browser</button>
+        <button class="v-icon" data-vibe-action="open" data-vibe-value="Tiny Paint">Tiny Paint</button>
+        <div class="v-window">
+          <div class="v-window-title">${escapeHtml(subject)} Simulator</div>
+          <p>This is a contained fake desktop running inside the app window.</p>
+        </div>
+        <div class="v-taskbar">Start | ${escapeHtml(subject)} | 4:04 PM</div>
+      </div>`;
+  }
+
+  if (kind === 'browser') {
+    return `
+      <div class="v-browser">
+        <div class="v-row v-address"><input class="v-input" data-vibe-field="address" value="vibe://${escapeHtml(slugify(subject))}" /><button class="v-button v-primary" data-vibe-action="go" data-vibe-value="Go">Go</button></div>
+        <div class="v-search-results">
+          ${['Official-looking home page', 'Archived fan site', 'Offline screenshots'].map((name) => `<button class="v-search-result" data-vibe-action="result" data-vibe-value="${name}"><strong>${escapeHtml(subject)} - ${name}</strong><span class="v-muted">Generated local search result for ${escapeHtml(prompt)}.</span></button>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="v-card">
+      <h1>${escapeHtml(subject)}</h1>
+      <p>${escapeHtml(prompt)} has been generated as a complete retro utility surface.</p>
+      <div class="v-grid">
+        ${['Control panel', 'Live output', 'Simulated records'].map((name) => `<div class="v-panel"><h2>${name}</h2><p class="v-muted">${escapeHtml(subject)} data is invented locally.</p></div>`).join('')}
+      </div>
+      <ul class="v-list">
+        ${panels.map((panel) => `<li class="v-list-item">${escapeHtml(panel)}</li>`).join('')}
+      </ul>
+    </div>`;
+}
+
+function inferGeneratedKind(prompt: string): string {
+  const normalized = prompt.toLowerCase();
+  if (/\b(money|finance|ledger|budget|bank|stock|tax)\b/.test(normalized)) {
+    return 'finance';
+  }
+  if (/\b(encarta|encyclopedia|wiki|article|about|biography|history)\b/.test(normalized)) {
+    return 'encyclopedia';
+  }
+  if (/\b(paint|draw|drawing|canvas|picture|sketch)\b/.test(normalized)) {
+    return 'paint';
+  }
+  if (/\b(nested|os|desktop|simulator|virtual machine|vm)\b/.test(normalized)) {
+    return 'nested';
+  }
+  if (/\b(browser|internet|web|site|search|google|yahoo)\b/.test(normalized)) {
+    return 'browser';
+  }
+  return 'custom';
+}
+
+function inferGeneratedSubject(prompt: string): string {
+  const match = prompt.match(/\b(?:about|for|of|with)\s+(.+)$/i);
+  return (match?.[1] ?? prompt).trim().slice(0, 80) || 'Generated App';
+}
+
+function slugify(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'generated';
 }
 
 function normalizeObject<T extends Record<string, unknown>>(value: unknown, fallback: T): T {

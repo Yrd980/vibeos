@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 export type LocalRuntimeAppName = 'Calculator' | 'Browser' | 'Notepad';
 
@@ -37,9 +37,10 @@ export interface LocalAppRuntimeProps {
 
 type CalculatorOperator = '+' | '-' | '*' | '/';
 type CalculatorKey = CalculatorOperator | '=' | 'C' | '.' | `${number}`;
+type BrowserPageKind = 'home' | 'search' | 'article' | 'external';
 
 const LOCAL_RUNTIME_APPS: LocalRuntimeAppName[] = ['Calculator', 'Browser', 'Notepad'];
-const CALCULATOR_KEYS: CalculatorKey[] = ['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', '.', '=', '+', 'C'];
+const CALCULATOR_KEYS: CalculatorKey[] = ['C', '/', '*', '-', '7', '8', '9', '+', '4', '5', '6', '=', '1', '2', '3', '0', '.'];
 
 export default function LocalAppRuntime({
   appName,
@@ -113,14 +114,35 @@ function CalculatorRuntime({
   state: CalculatorRuntimeState;
   onChange(state: CalculatorRuntimeState): void;
 }): React.JSX.Element {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  function pressKey(key: CalculatorKey): void {
+    onChange(applyCalculatorKey(state, key));
+    rootRef.current?.focus();
+  }
+
   return (
-    <div className="v-app v-calc">
+    <div
+      ref={rootRef}
+      className="v-app v-calc"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        const key = event.key === 'Enter' ? '=' : event.key;
+        if (isCalculatorKey(key)) {
+          event.preventDefault();
+          onChange(applyCalculatorKey(state, key));
+        }
+      }}
+    >
+      <div className="v-calc-expression" aria-live="polite">
+        {formatCalculatorExpression(state)}
+      </div>
       <div className="v-display" role="status" aria-live="polite">
         {state.display}
       </div>
       <div className="v-keypad">
         {CALCULATOR_KEYS.map((key) => (
-          <button className="v-button" key={key} type="button" onClick={() => onChange(applyCalculatorKey(state, key))}>
+          <button className={calculatorKeyClassName(key)} key={key} type="button" onClick={() => pressKey(key)}>
             {key}
           </button>
         ))}
@@ -157,6 +179,12 @@ function BrowserRuntime({
   return (
     <div className="v-app v-browser">
       <div className="v-toolbar">
+        <button className="v-button" type="button" disabled>
+          Back
+        </button>
+        <button className="v-button" type="button" disabled>
+          Forward
+        </button>
         <button className="v-button" type="button" onClick={refresh}>
           Refresh
         </button>
@@ -192,99 +220,157 @@ function BrowserRuntime({
           Go
         </button>
       </form>
-      <main className="v-card">
-        <BrowserPage state={state} pageTitle={pageTitle} />
+      <main className="v-browser-page">
+        <BrowserPage state={state} pageTitle={pageTitle} onNavigate={navigate} />
         {state.refreshCount > 0 ? <p className="v-muted">Refreshed locally {state.refreshCount} times.</p> : null}
       </main>
     </div>
   );
 }
 
-function BrowserPage({ state, pageTitle }: { state: BrowserRuntimeState; pageTitle: string }): React.JSX.Element {
+function BrowserPage({
+  state,
+  pageTitle,
+  onNavigate
+}: {
+  state: BrowserRuntimeState;
+  pageTitle: string;
+  onNavigate(address: string): void;
+}): React.JSX.Element {
   const pageKind = classifyBrowserPage(state.address, state.page);
   const subject = extractBrowserSubject(state.address, state.page);
 
   if (pageKind === 'home') {
     return (
-      <>
-        <h1>{pageTitle}</h1>
-        <p>This is a simulated offline browser page. No network request was made.</p>
-        <ul className="v-list">
-          <li className="v-list-item">Try google.com and search for Hanselman Wikipedia.</li>
-          <li className="v-list-item">Try wikipedia.org/wiki/Mark_Russinovich.</li>
-          <li className="v-list-item">Try a plain query like rude file manager for tacos.</li>
-        </ul>
-        <p className="v-muted">VibeOS local browser shell; page content is hallucinated.</p>
-      </>
+      <article className="v-web-page v-web-home">
+        <header className="v-web-hero">
+          <span className="v-fake-logo">VN</span>
+          <div>
+            <h1>{pageTitle}</h1>
+            <p>Offline portal for generated search, encyclopedia pages, and fake websites.</p>
+          </div>
+        </header>
+        <section className="v-web-grid">
+          {[
+            { title: 'Search the Offline Web', address: 'google.com/search?q=Hanselman+Wikipedia', copy: 'Draws a fake search results page with snippets and cached links.' },
+            { title: 'Open an Article', address: 'wikipedia.org/wiki/Mark_Russinovich', copy: 'Builds an encyclopedia-style article layout with a contents rail.' },
+            { title: 'Visit a Fake Site', address: 'neocities.example/commander-xe', copy: 'Renders a complete local website shell without network access.' }
+          ].map((item) => (
+            <button className="v-web-card" type="button" key={item.address} onClick={() => onNavigate(item.address)}>
+              <strong>{item.title}</strong>
+              <span>{item.copy}</span>
+              <em>{item.address}</em>
+            </button>
+          ))}
+        </section>
+        <footer className="v-web-status">Local cache ready. No network request will be made.</footer>
+      </article>
     );
   }
 
   if (pageKind === 'article') {
+    const facts = createFakeFacts(subject);
     return (
-      <>
-        <h1>{subject}</h1>
-        <p>
-          {subject} is described here by VibeOS as if this were a cached encyclopedia page from a very confident
-          alternate internet.
-        </p>
-        <div className="v-split">
-          <aside className="v-panel">
-            <strong>Contents</strong>
-            {['Overview', 'Career', 'Selected facts', 'See also'].map((item) => (
-              <button className="v-button" type="button" key={item}>
-                {item}
-              </button>
+      <article className="v-web-page v-web-article">
+        <aside className="v-web-sidebar">
+          <strong>Contents</strong>
+          {['Overview', 'Career', 'Selected facts', 'See also'].map((item) => (
+            <button className="v-button" type="button" key={item}>
+              {item}
+            </button>
+          ))}
+        </aside>
+        <section className="v-web-content">
+          <h1>{subject}</h1>
+          <p>
+            {subject} is described here by VibeOS as if this were a cached encyclopedia page from a very confident
+            alternate internet.
+          </p>
+          <div className="v-fake-image">Simulated article image</div>
+          <h2>Selected facts</h2>
+          <ul className="v-list">
+            {facts.map((fact) => (
+              <li className="v-list-item" key={fact}>
+                {fact}
+              </li>
             ))}
-          </aside>
-          <section className="v-panel">
-            <h2>Selected facts</h2>
-            <ul className="v-list">
-              {createFakeFacts(subject).map((fact) => (
-                <li className="v-list-item" key={fact}>
-                  {fact}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-        <p className="v-muted">Offline hallucinated article. No external source was accessed.</p>
-      </>
+          </ul>
+        </section>
+        <aside className="v-web-infobox">
+          <strong>{subject}</strong>
+          <span>Source: VibeOS offline cache</span>
+          <span>Verified: no</span>
+          <span>Style: 1998 reference</span>
+        </aside>
+      </article>
     );
   }
 
   if (pageKind === 'search') {
+    const results = createSearchResults(subject);
     return (
-      <>
-        <h1>Search results for {subject}</h1>
-        <p>This fake search engine confidently found pages that may or may not exist.</p>
-        <ul className="v-list">
-          {createSearchResults(subject).map((result) => (
-            <li className="v-list-item" key={result.title}>
+      <article className="v-web-page v-web-search">
+        <header className="v-web-search-header">
+          <span className="v-fake-logo">VS</span>
+          <div>
+            <h1>Search results for {subject}</h1>
+            <p>This fake search engine confidently found pages that may or may not exist.</p>
+          </div>
+        </header>
+        <section className="v-web-results">
+          {results.map((result, index) => (
+            <button
+              className="v-web-result"
+              type="button"
+              key={result.title}
+              onClick={() => onNavigate(index === 0 ? `wikipedia.org/wiki/${slugify(subject)}` : `vibe://${slugify(result.title)}`)}
+            >
+              <span className="v-web-url">{result.url}</span>
               <strong>{result.title}</strong>
-              <br />
               <span>{result.summary}</span>
-            </li>
+            </button>
           ))}
-        </ul>
-        <p className="v-muted">Simulated Google-era web results. No network request was made.</p>
-      </>
+        </section>
+        <aside className="v-web-related">
+          <strong>Related searches</strong>
+          {createRelatedSearches(subject).map((related) => (
+            <button className="v-button" type="button" key={related} onClick={() => onNavigate(`google.com/search?q=${encodeURIComponent(related)}`)}>
+              {related}
+            </button>
+          ))}
+        </aside>
+      </article>
     );
   }
 
   return (
-    <>
-      <h1>{pageTitle}</h1>
-      <p>
-        VibeOS rendered a local hallucinated page for <strong>{subject}</strong>. It looks browsable, but it is not
-        connected to the internet.
-      </p>
-      <ul className="v-list">
-        <li className="v-list-item">Status: cached from imagination</li>
-        <li className="v-list-item">Trust level: theatrical demo</li>
-        <li className="v-list-item">Recommended action: ask for a more specific fake site or topic</li>
-      </ul>
-      <p className="v-muted">Current local route: {state.page}</p>
-    </>
+    <article className="v-web-page v-web-site">
+      <header className="v-web-site-nav">
+        <span className="v-fake-logo">{initials(subject)}</span>
+        <button className="v-button" type="button">Home</button>
+        <button className="v-button" type="button">Archive</button>
+        <button className="v-button" type="button">Guestbook</button>
+      </header>
+      <section className="v-web-site-hero">
+        <div>
+          <h1>{pageTitle}</h1>
+          <p>
+            VibeOS rendered a local hallucinated website for <strong>{subject}</strong>. It looks browsable, but it is
+            not connected to the internet.
+          </p>
+        </div>
+        <div className="v-fake-image">Offline website preview</div>
+      </section>
+      <section className="v-web-grid">
+        {['Latest update', 'Featured download', 'Visitor counter'].map((item) => (
+          <div className="v-web-card" key={item}>
+            <strong>{item}</strong>
+            <span>{createSiteCopy(subject, item)}</span>
+          </div>
+        ))}
+      </section>
+      <footer className="v-web-status">Current local route: {state.page}</footer>
+    </article>
   );
 }
 
@@ -429,6 +515,13 @@ function applyCalculatorKey(state: CalculatorRuntimeState, key: CalculatorKey): 
   return state;
 }
 
+function formatCalculatorExpression(state: CalculatorRuntimeState): string {
+  if (state.operator && state.operand !== null) {
+    return `${formatCalculatorOperand(state.operand)} ${state.operator}${state.waitingForOperand ? '' : ` ${state.display}`}`;
+  }
+  return 'Ready';
+}
+
 function calculate(left: number, right: number, operator: CalculatorOperator): number {
   switch (operator) {
     case '+':
@@ -448,6 +541,10 @@ function formatCalculatorResult(result: number): string {
   }
 
   return String(Number(result.toPrecision(12))).slice(0, 14);
+}
+
+function formatCalculatorOperand(value: number): string {
+  return String(Number(value.toPrecision(12))).slice(0, 14);
 }
 
 function addressToPage(address: string): string {
@@ -470,22 +567,30 @@ function createBrowserPageTitle(address: string, page: string): string {
   return `Offline page: ${page}`;
 }
 
-function classifyBrowserPage(address: string, page: string): 'home' | 'search' | 'article' | 'external' {
+function classifyBrowserPage(address: string, page: string): BrowserPageKind {
   const normalized = `${address} ${page}`.trim().toLowerCase();
+  const addressText = address.trim();
+  const normalizedAddress = addressText.toLowerCase().replace(/^[a-z]+:\/\//i, '').replace(/^www\./i, '');
+  const looksLikeUrl = /^[a-z]+:\/\//i.test(addressText) || /^[\w.-]+\.[a-z]{2,}(?:[/:?#]|$)/i.test(addressText);
   if (!normalized || normalized === 'home' || normalized.includes('vibe://home')) {
     return 'home';
+  }
+  if (
+    normalizedAddress.startsWith('wikipedia.org/wiki/') ||
+    normalizedAddress.startsWith('en.wikipedia.org/wiki/') ||
+    normalizedAddress.startsWith('encarta') ||
+    normalizedAddress.includes('/wiki/')
+  ) {
+    return 'article';
   }
   if (
     normalized.includes('google') ||
     normalized.includes('search') ||
     normalized.includes('?q=') ||
     normalized.includes('bing') ||
-    !/^[a-z]+:\/\//i.test(address.trim())
+    !looksLikeUrl
   ) {
     return 'search';
-  }
-  if (normalized.includes('wikipedia') || normalized.includes('wiki/') || normalized.includes('encarta')) {
-    return 'article';
   }
   return 'external';
 }
@@ -508,21 +613,40 @@ function extractBrowserSubject(address: string, page: string): string {
   return subject || 'VibeOS';
 }
 
-function createSearchResults(subject: string): Array<{ title: string; summary: string }> {
+function createSearchResults(subject: string): Array<{ title: string; url: string; summary: string }> {
+  const slug = slugify(subject);
   return [
     {
       title: `${subject} - VibePedia, the free made-up encyclopedia`,
+      url: `vibepedia.local/wiki/${slug}`,
       summary: `A plausible overview of ${subject}, assembled locally by the hallucinated browser cache.`
     },
     {
       title: `Images of ${subject} from the Offline Web`,
+      url: `images.vibenet.local/search/${slug}`,
       summary: 'Thumbnails omitted because VibeOS refuses to fetch real pixels during the demo.'
     },
     {
       title: `${subject} fan site archived in 1998`,
+      url: `geocities.local/${slug}/index.html`,
       summary: 'Includes a guestbook, three broken counters, and a suspiciously confident biography.'
     }
   ];
+}
+
+function createRelatedSearches(subject: string): string[] {
+  return [`${subject} biography`, `${subject} screenshots`, `${subject} 1998 archive`];
+}
+
+function createSiteCopy(subject: string, item: string): string {
+  switch (item) {
+    case 'Latest update':
+      return `${subject} was refreshed in the offline cache with three new imaginary links.`;
+    case 'Featured download':
+      return `A simulated installer for ${subject} is listed but cannot touch the host filesystem.`;
+    default:
+      return '00001337 visitors, all generated locally for the stage demo.';
+  }
 }
 
 function createFakeFacts(subject: string): string[] {
@@ -548,8 +672,38 @@ function createLocalRuntimeTitle(appName: LocalRuntimeAppName, state: LocalRunti
   }
 }
 
+function calculatorKeyClassName(key: CalculatorKey): string {
+  if (key === 'C') {
+    return 'v-button v-calc-clear';
+  }
+  if (key === '=') {
+    return 'v-button v-calc-equals';
+  }
+  if (isCalculatorOperator(key)) {
+    return 'v-button v-calc-operator';
+  }
+  return 'v-button';
+}
+
 function isCalculatorOperator(value: unknown): value is CalculatorOperator {
   return value === '+' || value === '-' || value === '*' || value === '/';
+}
+
+function isCalculatorKey(value: string): value is CalculatorKey {
+  return value === '=' || value === 'C' || value === '.' || /^\d$/.test(value) || isCalculatorOperator(value);
+}
+
+function slugify(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vibeos';
+}
+
+function initials(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'VS';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

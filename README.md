@@ -12,6 +12,8 @@ Current first-phase behavior:
 - The Start menu includes reference-demo examples such as `Encarta 98 about Mark Russinovich`, `Commander XE but rude`, and `Microsoft Money 95 for Scott Hanselman`.
 - Recently generated app prompts are tracked in renderer state so they can be relaunched quickly.
 - Unknown generated apps receive inferred profiles for finance ledgers, encyclopedia articles, browser/search pages, paint canvases, setup wizards, nested desktops, and snarky utilities.
+- Generated app startup falls back to prompt-aware local UI when the model provider is unavailable, so `Ask VibeOS` still opens a usable retro app instead of an error panel.
+- Calculator, Browser, and Notepad are local React runtimes. Calculator shows pending operators such as `7 *` and accepts both button clicks and keyboard input.
 - The local Browser runtime stays responsive but renders richer hallucinated search/article pages for external-looking addresses and search queries.
 
 ## Setup
@@ -36,7 +38,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 
 `hybrid` keeps local-runtime apps instant, while using DeepSeek for generated custom apps. DeepSeek is called from the Electron main process only. The renderer never receives the API key.
 
-`VIBEOS_LLM_PROVIDER=deepseek` is currently treated the same as `hybrid` so demos stay responsive. Calculator, Browser, and Notepad do not call the model for routine clicks or typing.
+`VIBEOS_LLM_PROVIDER=deepseek` is currently treated the same as `hybrid` so demos stay responsive. Calculator, Browser, and Notepad do not call the model for routine clicks or typing. If DeepSeek is missing, times out, or returns an unusable provider-error frame, VibeOS falls back to the local mock generator for that turn.
 
 ## Scripts
 
@@ -114,7 +116,9 @@ npm run build
 Useful UI smoke checks:
 
 - Calculator: `7 * 8 = 56` and no `Thinking` badge.
+- Calculator: after pressing `7` then `*`, the expression row shows `7 *`; keyboard input supports digits, `/`, `*`, `+`, `-`, `.`, `C`, and `Enter`.
 - Notepad: typing keeps textarea focus and updates the title.
 - Browser: clicking the address bar selects the current address; Enter and Go navigate simulated `vibe://` pages or hallucinated search/article pages such as `google.com/search?q=Hanselman+Wikipedia`.
 - Start menu/taskbar: `Ask VibeOS` can launch a custom generated prompt, and generated prompts appear in Recent.
+- Start menu/taskbar: with the model provider unavailable, `Ask VibeOS` still opens a prompt-specific local fallback UI rather than `Could not start app`.
 - Clicking visible window content brings that window to the front.

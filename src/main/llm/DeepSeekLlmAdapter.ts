@@ -12,6 +12,7 @@ const GenerateUiResultSchema = z.object({
   state: z.unknown(),
   narration: z.string().nullable().optional()
 });
+const REQUEST_TIMEOUT_MS = 12000;
 
 interface DeepSeekChatResponse {
   choices?: Array<{ message?: { content?: string } }>;
@@ -45,6 +46,9 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
     } catch (error) {
       const firstError = error instanceof Error ? error.message : 'Unknown DeepSeek error';
       console.warn(`DeepSeek response parse failed: ${firstError}`);
+      if (!content) {
+        return safeErrorUi(input.appName, firstError);
+      }
       try {
         const repairContent = await this.request([
           { role: 'system' as const, content: HALLUCINATED_APP_SYSTEM_PROMPT },
@@ -60,8 +64,11 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
   }
 
   private async request(messages: Array<{ role: 'system' | 'user'; content: string }>): Promise<string> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json'
@@ -72,7 +79,7 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
         temperature: 0.4,
         response_format: { type: 'json_object' }
       })
-    });
+    }).finally(() => clearTimeout(timeout));
 
     if (!response.ok) {
       const body = await response.text();

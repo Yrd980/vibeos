@@ -11,7 +11,12 @@ interface AppViewportProps {
 export default function AppViewport({ html, loading, onEvent }: AppViewportProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputTimers = useRef(new Map<string, number>());
+  const onEventRef = useRef(onEvent);
   const cleanHtml = useMemo(() => sanitizeModelHtml(html), [html]);
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -19,18 +24,26 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
       return;
     }
 
-    const handleClick = (event: MouseEvent): void => {
-      if (!event.isTrusted) {
-        return;
-      }
+    const getActionElement = (event: Event): Element | null => {
       const target = event.target instanceof Element ? event.target : null;
       const element = target?.closest('[data-vibe-action], button');
       if (!element || !root.contains(element)) {
+        return null;
+      }
+      if (element instanceof HTMLButtonElement && element.disabled) {
+        return null;
+      }
+      return element;
+    };
+
+    const handleClick = (event: MouseEvent): void => {
+      const element = getActionElement(event);
+      if (!element) {
         return;
       }
       event.preventDefault();
       const rect = (element as HTMLElement).getBoundingClientRect();
-      onEvent({
+      onEventRef.current({
         type: 'click',
         targetText: capText(element.getAttribute('data-vibe-value') ?? element.textContent ?? ''),
         targetRole: element.getAttribute('role') ?? element.tagName.toLowerCase(),
@@ -41,9 +54,6 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
     };
 
     const handleInput = (event: Event): void => {
-      if (event instanceof InputEvent && !event.isTrusted) {
-        return;
-      }
       const target = event.target instanceof Element ? event.target : null;
       const element = target?.closest('[data-vibe-field], input, textarea, select') as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
       if (!element || !root.contains(element)) {
@@ -56,7 +66,7 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
       inputTimers.current.set(
         key,
         window.setTimeout(() => {
-          onEvent({
+          onEventRef.current({
             type: 'input',
             targetLabel: capText(field),
             selectorPath: capText(key),
@@ -67,12 +77,9 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
     };
 
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (!event.isTrusted) {
-        return;
-      }
       if (event.key !== 'Enter') {
         if (event.ctrlKey || event.altKey) {
-          onEvent({ type: 'keyboard', key: event.key, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey });
+          onEventRef.current({ type: 'keyboard', key: event.key, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey });
         }
         return;
       }
@@ -85,7 +92,7 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
         return;
       }
       event.preventDefault();
-      onEvent({
+      onEventRef.current({
         type: 'submit',
         formText: capText(element.value),
         values: collectFieldValues(root)
@@ -106,7 +113,7 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
       }
       inputTimers.current.clear();
     };
-  }, [onEvent]);
+  }, []);
 
   return (
     <div className="app-viewport">

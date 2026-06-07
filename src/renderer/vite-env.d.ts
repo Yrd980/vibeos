@@ -4,7 +4,7 @@ import type { VibeOsApi } from '../shared/types';
 
 declare global {
   interface Window {
-    vibeos: VibeOsApi;
+    vibeos?: VibeOsApi;
   }
 }
 

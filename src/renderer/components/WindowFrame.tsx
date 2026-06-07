@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AppEvent } from '../../shared/types';
 import type { DesktopWindow } from '../state/desktopStore';
 import { useDesktopStore } from '../state/desktopStore';
+import { getVibeOsApi } from '../utils/vibeosApi';
 import AppViewport from './AppViewport';
 import LocalAppRuntime, { isLocalRuntimeApp } from './LocalAppRuntime';
 
@@ -72,7 +73,7 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
       updateWindow(window.windowId, { loading: true });
     }, 250);
     try {
-      const result = await windowApi().sendAppEvent(window.appSessionId, event);
+      const result = await getVibeOsApi().sendAppEvent(window.appSessionId, event);
       globalThis.clearTimeout(busyTimer);
       setShowBusy(false);
       updateWindowResult(window.windowId, result);
@@ -96,7 +97,7 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
 
   async function handleClose(): Promise<void> {
     if (!isLocalRuntimeApp(window.appName)) {
-      await windowApi().closeAppSession(window.appSessionId).catch(() => ({ closed: false }));
+      await getVibeOsApi().closeAppSession(window.appSessionId).catch(() => ({ closed: false }));
     }
     closeWindow(window.windowId);
   }
@@ -133,7 +134,7 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
       <div
         className="window-content"
         onMouseDown={(event) => {
-          focusWindow(window.windowId);
+          focusIfNeeded();
           event.stopPropagation();
         }}
       >
@@ -158,8 +159,4 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
       ) : null}
     </section>
   );
-}
-
-function windowApi(): Window['vibeos'] {
-  return window.vibeos;
 }

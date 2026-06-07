@@ -1,4 +1,5 @@
 import { useDesktopStore } from '../state/desktopStore';
+import { getVibeOsApi } from '../utils/vibeosApi';
 import { createInitialLocalRuntimeState, createLocalRuntimeResult, isLocalRuntimeApp } from './LocalAppRuntime';
 import StartMenu, { APPS, ICONS } from './StartMenu';
 import Taskbar from './Taskbar';
@@ -62,7 +63,7 @@ export default function Desktop(): React.JSX.Element {
     });
 
     try {
-      const session = await window.vibeos.createAppSession(normalizedAppName);
+      const session = await getVibeOsApi().createAppSession(normalizedAppName);
       useDesktopStore.getState().updateWindow(windowId, {
         appSessionId: session.appSessionId,
         title: session.result.title,
