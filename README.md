@@ -10,9 +10,9 @@ The generated content should also visually resemble the real thing being simulat
 
 App Search is a core part of the shell. It should search for anything the user types and asynchronously infer plausible next steps as the user is typing. The result pane should update live with Windows-like rows, icons, descriptions, highlighted selection, scrolling, keyboard navigation, and launch behavior. Searching `todo` might suggest To Do, TaskPad, Checklist, Reminder Desk, fake files, settings, websites, or a new generated app.
 
-The implementation still separates local shell mechanics from generated content. Window management and routine controls stay local so the demo stays responsive; AI sessions are reserved for generated or imagined app surfaces.
+The target implementation separates local shell mechanics from generated content. Window management and routine controls stay local so the demo stays responsive; AI sessions are reserved for generated or imagined app surfaces.
 
-Current first-phase behavior:
+Target behavior:
 
 - The Start menu and taskbar both expose an `Ask VibeOS` prompt for launching arbitrary generated apps.
 - App Search is a live async discovery surface for built-in apps, generated apps, fake utilities, websites, files, settings, and next-step suggestions.
@@ -20,8 +20,8 @@ Current first-phase behavior:
 - Recently generated app prompts are tracked in renderer state so they can be relaunched quickly.
 - Unknown generated apps receive inferred profiles for finance ledgers, encyclopedia articles, browser/search pages, paint canvases, setup wizards, nested desktops, and snarky utilities.
 - Generated app startup falls back to prompt-aware local UI when the model provider is unavailable, so `Ask VibeOS` still opens a usable retro app instead of an error panel.
-- Generated app UI uses structured content blocks, not raw model HTML. The renderer owns the React output and delegated event attributes.
-- Generated app startup should move toward staged reveal. A provider may return a full `GenerateUiResult` today, but the renderer can still play the blocks out progressively until true incremental patch streaming exists.
+- Generated app UI uses generated documents, generated blocks, and patch envelopes, not raw model HTML. The renderer owns the React output and delegated event attributes.
+- Generated app startup should use staged reveal through a validated block tree and patch stream.
 - Staged reveal should be fast and purposeful, like a page loading in pieces. It should show construction without delaying usability.
 - Calculator, Browser, and Notepad are local React runtimes. Calculator shows pending operators such as `7 *` and accepts both button clicks and keyboard input.
 - The local Browser runtime stays responsive but renders richer hallucinated search/article pages for external-looking addresses and search queries. These pages should resemble their real targets or genres, not generic cards with fake copy.
@@ -33,24 +33,20 @@ bun install
 bun run dev
 ```
 
-The default provider is `hybrid`. Built-in apps stay local; arbitrary generated apps use DeepSeek when `VITE_DEEPSEEK_API_KEY` is set and fall back to the local mock generator when it is unavailable.
+The default implementation path is local-first. Built-in apps stay local; arbitrary generated apps should use DeepSeek through a hand-written provider adapter only after the local runtime, patch protocol, validator, scheduler, and mock provider are working.
 
 ## DeepSeek
 
-Copy `.env.example` to `.env` and set:
+DeepSeek integration should be implemented manually behind a provider interface that converts model output into validated VibeOS patch envelopes.
 
 ```text
-VITE_VIBEOS_LLM_PROVIDER=hybrid
-VITE_DEEPSEEK_API_KEY=sk-...
-VITE_DEEPSEEK_MODEL=deepseek-v4-flash
-VITE_DEEPSEEK_PROXY_TARGET=https://api.deepseek.com
+local runtime -> generated runtime host -> provider adapter -> DeepSeek
+              -> patch validator/reducer -> stage scheduler -> React renderer
 ```
 
-`hybrid` keeps local-runtime apps instant, while using DeepSeek for generated custom apps. In this web-only prototype, DeepSeek is called from browser code through the Vite dev proxy by default. `VITE_` variables are exposed to the client, so do not ship a production key in a public static deployment.
+Calculator, Browser chrome, Notepad, shell controls, window management, and App Search typing must not call the model for routine interactions. If DeepSeek is missing, slow, or returns unusable output, VibeOS should keep the last valid generated document visible and fall back to local simulated/stale UI for that turn.
 
-`VITE_VIBEOS_LLM_PROVIDER=deepseek` sends generated-app turns directly to DeepSeek. Calculator, Browser, and Notepad do not call the model for routine clicks or typing. If DeepSeek is missing, times out, or returns an unusable provider-error frame in `hybrid`, VibeOS falls back to the local mock generator for that turn.
-
-The browser always calls the same-origin `/deepseek-api` path. `vite.config.ts` installs a local `/deepseek-api` middleware for development and preview, and that middleware forwards requests to `VITE_DEEPSEEK_PROXY_TARGET`. This avoids browser CORS failures from direct requests to `https://api.deepseek.com`. Static production hosting still needs an equivalent backend, API route, or edge function for `/deepseek-api`.
+Keep API keys out of the public client bundle. Development and production should use a same-origin server endpoint or equivalent backend boundary when calling DeepSeek.
 
 ## Scripts
 
@@ -63,10 +59,10 @@ bun run preview    # Preview the production build
 
 ## Security Model
 
-- LLM output is structured data only. Generated apps return `GenerateUiResult.blocks`, not raw HTML, scripts, styles, or markup fragments.
-- `AppViewport` renders every generated block as React. Text, labels, list items, table cells, and field values stay plain strings.
-- Generated blocks may request only known renderer vocabulary: safe class names, block roles, actions, fields, lists, text, and tables.
-- The model can provide action and field identifiers, but the renderer owns the actual React elements and `data-vibe-*` event attributes.
+- LLM output is structured data only. Generated apps use `GeneratedDocument`, `GeneratedBlock`, and `PatchEnvelope` data, not raw HTML, scripts, styles, or markup fragments.
+- The generated block renderer renders every visible generated block as React. Text, labels, list items, table cells, and field values stay plain strings.
+- Generated blocks may request only known renderer vocabulary: whitelisted block types, style tokens, roles, actions, fields, lists, text, and tables.
+- The model can provide action and field identifiers, but the renderer owns the actual React elements and delegated event attributes.
 - Model JavaScript, iframes, forms, remote resources, inline handlers, arbitrary CSS, raw HTML, filesystem access, and real network access are outside the generated app contract.
 - Local-runtime apps use React controls and renderer state for routine interaction.
 - Generated app surfaces use delegated events and send only small structured event objects plus current generated state back to the browser-side session adapter.
@@ -74,11 +70,11 @@ bun run preview    # Preview the production build
 ## Architecture
 
 ```text
-src/renderer/apps        app catalog and launch metadata
-src/renderer/components  desktop shell, window chrome, local runtimes, and AppViewport
-src/renderer/llm         browser-side mock, hybrid, and DeepSeek adapters
-src/renderer/utils       generated session API and safe UI vocabulary
-src/shared               app event and generated UI result types
+app catalog and launch metadata
+desktop shell, window chrome, local runtimes, and generated block renderer
+runtime kernel, session manager, stage scheduler, and cache hydrator
+mock and DeepSeek provider adapters
+shared app event, generated document, patch, and block types
 ```
 
 Runtime flow:
@@ -86,12 +82,13 @@ Runtime flow:
 ```text
 user click or input
   -> renderer desktop, taskbar, start menu, or window chrome
-  -> app catalog resolves the launch target
-  -> AppWindowContent chooses a local runtime or generated viewport
-  -> LocalAppRuntime handles Calculator, Browser, and Notepad entirely in React
-  -> vibeosApi manages generated app sessions, request queueing, and cache hydration
-  -> mock, hybrid, or DeepSeek adapter returns structured generated blocks
-  -> AppViewport renders the blocks and delegates safe events back into the session
+  -> intent resolver produces a LaunchIntent
+  -> runtime kernel opens/focuses a window and session
+  -> runtime registry chooses local, browser, or generated runtime
+  -> local runtime handles Calculator, Browser chrome, and Notepad entirely in React
+  -> generated runtime manages sessions, request queueing, cache hydration, and staging
+  -> mock or DeepSeek adapter returns validated generated patches
+  -> generated block renderer renders visible blocks and delegates safe events back into the session
 ```
 
 Reference-demo behavior:
@@ -117,28 +114,36 @@ user types into App Search
   -> Enter/click launches the selected built-in app, generated app, website-like page, fake file, or setting
 ```
 
-Local-runtime apps live in `src/renderer/components/LocalAppRuntime.tsx`. They use normal React controls and renderer state, so routine typing and clicks do not rebuild the DOM from model output.
+Local-runtime apps use normal React controls and renderer state, so routine typing and clicks do not rebuild the DOM from model output.
 
-Browser is currently a hybrid demo prop: its chrome and address entry stay local, while external-looking routes are rendered as simulated offline search results or articles. It does not access the real internet.
+Browser is a hybrid demo prop: its chrome and address entry stay local, while external-looking routes are rendered as simulated offline search results or articles. It does not access the real internet.
 
 Browser pages should be recognizable facsimiles. Google-like pages should feel like old search pages, Wikipedia-like pages should use article and infobox structure, example.com-like pages should stay plain and document-like, and fake sites should borrow the visual language of the requested site category.
 
-Generated apps use the blocks-only protocol:
+Generated apps use a validated block tree and patch stream protocol:
 
 ```ts
-GenerateUiResult {
-  title: string;
-  state: unknown;
-  narration?: string | null;
-  blocks: GeneratedUiBlock[];
+GeneratedDocument {
+  revision: number;
+  appIdentity: AppIdentity;
+  stage: 'booting' | 'identifying' | 'building-chrome' | 'building-content' | 'detailing' | 'ready' | 'stale' | 'errored';
+  rootBlockId: string;
+  blocks: Record<string, GeneratedBlock>;
+  eventIntents: Record<string, EventIntent>;
+}
+
+PatchEnvelope {
+  seq: number;
+  baseRevision: number;
+  resultRevision: number;
+  kind: 'lifecycle' | 'patch' | 'transaction' | 'validation' | 'heartbeat' | 'done' | 'error';
+  payload: unknown;
 }
 ```
 
-Each `GeneratedUiBlock` has an `id`, a role such as `menubar`, `toolbar`, `sidebar`, `main`, `panel`, `status`, or `dialog`, and optional structured content: `title`, `text`, `items`, `actions`, `fields`, `table`, and a safe `className`. Actions expose `id`, `label`, optional `value`, and a limited variant. Fields expose `id`, `label`, string `value`, optional `placeholder`, and optional multiline mode.
+Each `GeneratedBlock` has an `id`, whitelisted `type`, optional `role`, schema-validated `props`, ordered child block IDs, whitelisted `styleTokens`, and optional registered event intents. The model never provides executable code, arbitrary CSS, or raw markup.
 
-There is no compatibility HTML channel. Generated app behavior is expressed through structured blocks plus delegated `click`, `input`, `submit`, and `keyboard` events. Initial generated app results are cached in browser memory so reopening the same generated app can hydrate a new session without waiting for the model again.
-
-The desired future protocol is incremental. `GenerateUiResult.blocks` remains the safe renderer contract, but generated startup should be able to apply ordered additions or updates: title first, empty shell next, menu or toolbar next, main panels next, then data and status details. Until that protocol exists, the renderer may simulate the same effect by staging a complete result over a short page-load-like burst.
+There is no compatibility HTML channel. Generated app behavior is expressed through structured blocks, validated patch operations, and delegated typed events. Generated sessions should be cached in browser memory so reopening the same generated app can hydrate quickly with a short staged replay.
 
 ## Experience Targets
 

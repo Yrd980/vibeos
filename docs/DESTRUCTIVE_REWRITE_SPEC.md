@@ -1,6 +1,6 @@
 # VibeOS Destructive Rewrite Spec
 
-This spec is the product and architecture target for the next coding session. It intentionally does not preserve the current component/store/API shape. The current code may be used as reference material, but it should not constrain the rewrite.
+This spec is the product and architecture target for the next coding session. It intentionally defines the desired component, store, runtime, and API shape from scratch. Existing implementation details, if any are later present, must not constrain the rewrite.
 
 ## North Star
 
@@ -719,7 +719,7 @@ Acceptance:
 
 ## Non-Goals
 
-- Do not preserve current `GenerateUiResult` as the main protocol.
+- Do not use `GenerateUiResult` as the main protocol.
 - Do not use raw HTML, iframe, script, style strings, arbitrary class names, or real network pages.
 - Do not build a real OS or real browser.
 - Do not prioritize factual correctness over stage-demo plausibility.
@@ -764,4 +764,5 @@ Acceptance:
 - Keep shell, window manager, sessions, generated document protocol, and render projection separate.
 - Start with deterministic mock streams so the UI can be built and verified without model latency.
 - Add provider integration only after the patch reducer, stage scheduler, and facsimile renderers are solid.
+- Implement DeepSeek integration manually behind the provider interface.
 - Use existing project tooling: `bun run typecheck`, `bun run build`, and browser smoke checks.
