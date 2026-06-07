@@ -13,6 +13,7 @@ const GenerateUiResultSchema = z.object({
   narration: z.string().nullable().optional()
 });
 const REQUEST_TIMEOUT_MS = 12000;
+const DEEPSEEK_PROXY_BASE_URL = '/deepseek-api';
 
 interface DeepSeekChatResponse {
   choices?: Array<{ message?: { content?: string } }>;
@@ -20,12 +21,10 @@ interface DeepSeekChatResponse {
 
 export class DeepSeekLlmAdapter implements LlmAdapter {
   private readonly apiKey: string;
-  private readonly baseUrl: string;
   private readonly model: string;
 
   constructor(env: ImportMetaEnv = import.meta.env) {
     this.apiKey = env.VITE_DEEPSEEK_API_KEY ?? '';
-    this.baseUrl = (env.VITE_DEEPSEEK_BASE_URL ?? '/deepseek-api').replace(/\/$/, '');
     this.model = env.VITE_DEEPSEEK_MODEL ?? 'deepseek-v4-flash';
   }
 
@@ -66,7 +65,7 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    const response = await fetch(`${DEEPSEEK_PROXY_BASE_URL}/chat/completions`, {
       method: 'POST',
       signal: controller.signal,
       headers: {

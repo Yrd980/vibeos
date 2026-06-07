@@ -33,7 +33,6 @@ Copy `.env.example` to `.env` and set:
 VITE_VIBEOS_LLM_PROVIDER=hybrid
 VITE_DEEPSEEK_API_KEY=sk-...
 VITE_DEEPSEEK_MODEL=deepseek-v4-flash
-VITE_DEEPSEEK_BASE_URL=/deepseek-api
 VITE_DEEPSEEK_PROXY_TARGET=https://api.deepseek.com
 ```
 
@@ -41,7 +40,7 @@ VITE_DEEPSEEK_PROXY_TARGET=https://api.deepseek.com
 
 `VITE_VIBEOS_LLM_PROVIDER=deepseek` sends generated-app turns directly to DeepSeek. Calculator, Browser, and Notepad do not call the model for routine clicks or typing. If DeepSeek is missing, times out, or returns an unusable provider-error frame in `hybrid`, VibeOS falls back to the local mock generator for that turn.
 
-The DeepSeek API itself is reachable with the configured key, but browser requests to `https://api.deepseek.com` can still be blocked by CORS. Keep `VITE_DEEPSEEK_BASE_URL=/deepseek-api` for local development and preview: `vite.config.ts` installs a same-origin `/deepseek-api` middleware that forwards requests to `VITE_DEEPSEEK_PROXY_TARGET`. Setting `VITE_DEEPSEEK_BASE_URL=https://api.deepseek.com` makes the browser call DeepSeek directly and may fail even when the API key is valid.
+The browser always calls the same-origin `/deepseek-api` path. `vite.config.ts` installs a local `/deepseek-api` middleware for development and preview, and that middleware forwards requests to `VITE_DEEPSEEK_PROXY_TARGET`. This avoids browser CORS failures from direct requests to `https://api.deepseek.com`. Static production hosting still needs an equivalent backend, API route, or edge function for `/deepseek-api`.
 
 ## Scripts
 
