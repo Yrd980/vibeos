@@ -246,22 +246,72 @@ button {
   right: 10px;
   top: 10px;
   z-index: 2;
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
   border: 1px solid #334155;
-  background: #fef3c7;
+  background: #fff7d6;
   color: #422006;
   font-size: 12px;
+  font-weight: 700;
+  box-shadow: 2px 2px 0 rgba(15, 23, 42, 0.28);
+}
+
+.viewport-loading::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border: 1px solid #14532d;
+  background: #22c55e;
+  box-shadow: 0 0 0 1px #bbf7d0 inset;
+  animation: ai-led-pulse 0.85s steps(2, end) infinite;
 }
 
 .generated-surface {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   overflow: auto;
+  background: #eef2f7;
   user-select: text;
 }
 
 .generated-surface > .v-block {
-  min-height: 100%;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.generated-surface > .v-block.v-app {
+  min-height: 0;
+}
+
+.generated-surface > [data-vibe-block-role="main"] {
+  flex: 1 0 auto;
+  min-height: 180px;
+}
+
+.generated-surface > [data-vibe-block-role="status"] {
+  margin-top: auto;
+}
+
+.generated-surface h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.generated-surface p {
+  margin: 7px 0;
+  max-width: 72ch;
+  line-height: 1.45;
+}
+
+@keyframes ai-led-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .taskbar {
@@ -576,6 +626,17 @@ button {
 
 .v-list-item {
   margin: 4px 0;
+}
+
+.v-inline-items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
 }
 
 .v-split {

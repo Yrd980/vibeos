@@ -35,6 +35,7 @@ Rules:
 8. Do not include style tags, inline style attributes, links, external images, external scripts, external stylesheets, iframes, audio, video, forms, SVG, or network resources.
 9. Use only these class names: ${SAFE_CLASS_NAMES.join(', ')}.
 10. Put clickable controls in actions and editable controls in fields; the renderer will attach delegated event attributes.
+10a. For menubar and toolbar blocks, use actions for every visible menu or tool item; do not put menu labels in items.
 11. Maintain consistency with the current state and current blocks.
 12. If the user asks for impossible external data, real people, current facts, personal finance, websites, files, commands, or software packages, invent a plausible retro/offline result and make clear inside the UI that it is simulated.
 13. For Calculator, produce plausible calculator behavior, but do not claim to be a real calculator engine.

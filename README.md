@@ -4,18 +4,27 @@ VibeOS is a web prototype built to recreate the experience of Zev.3R's "VibeOS -
 
 The product goal is to match the reference video's feel: a bootable-looking retro desktop, classic apps, fake Internet Explorer/search pages, invented Encarta-style knowledge apps, weird custom utilities, and nested simulated systems that are generated live from the user's prompt. The system should feel like a stage demo of an operating system where every app and every fact can be confidently made up.
 
+Generated UI should not feel like a normal app builder response where the user waits and then receives a completed screen. The intended trick is visible construction at web-page loading speed: VibeOS opens a retro window immediately, then the app identity, menu bar, toolbar, panes, fake data, status copy, and small controls appear in quick stages, as if the OS is thinking the interface into existence. This should usually feel like hundreds of milliseconds to a couple of seconds of progressive loading, not a slow animation.
+
+The generated content should also visually resemble the real thing being simulated. When Internet Explorer opens Google, Wikipedia, example.com, a search result page, a fake download portal, or a personal homepage, the page should use recognizable layout cues: familiar link colors, old-web spacing, article headings, infoboxes, search boxes, result snippets, simple status text, and era-appropriate page density. The content remains offline and may be invented, but the surface should look like a plausible page from the requested site or genre.
+
+App Search is a core part of the shell. It should search for anything the user types and asynchronously infer plausible next steps as the user is typing. The result pane should update live with Windows-like rows, icons, descriptions, highlighted selection, scrolling, keyboard navigation, and launch behavior. Searching `todo` might suggest To Do, TaskPad, Checklist, Reminder Desk, fake files, settings, websites, or a new generated app.
+
 The implementation still separates local shell mechanics from generated content. Window management and routine controls stay local so the demo stays responsive; AI sessions are reserved for generated or imagined app surfaces.
 
 Current first-phase behavior:
 
 - The Start menu and taskbar both expose an `Ask VibeOS` prompt for launching arbitrary generated apps.
+- App Search is a live async discovery surface for built-in apps, generated apps, fake utilities, websites, files, settings, and next-step suggestions.
 - The Start menu includes reference-demo examples such as `Encarta 98 about Mark Russinovich`, `Commander XE but rude`, and `Microsoft Money 95 for Scott Hanselman`.
 - Recently generated app prompts are tracked in renderer state so they can be relaunched quickly.
 - Unknown generated apps receive inferred profiles for finance ledgers, encyclopedia articles, browser/search pages, paint canvases, setup wizards, nested desktops, and snarky utilities.
 - Generated app startup falls back to prompt-aware local UI when the model provider is unavailable, so `Ask VibeOS` still opens a usable retro app instead of an error panel.
 - Generated app UI uses structured content blocks, not raw model HTML. The renderer owns the React output and delegated event attributes.
+- Generated app startup should move toward staged reveal. A provider may return a full `GenerateUiResult` today, but the renderer can still play the blocks out progressively until true incremental patch streaming exists.
+- Staged reveal should be fast and purposeful, like a page loading in pieces. It should show construction without delaying usability.
 - Calculator, Browser, and Notepad are local React runtimes. Calculator shows pending operators such as `7 *` and accepts both button clicks and keyboard input.
-- The local Browser runtime stays responsive but renders richer hallucinated search/article pages for external-looking addresses and search queries.
+- The local Browser runtime stays responsive but renders richer hallucinated search/article pages for external-looking addresses and search queries. These pages should resemble their real targets or genres, not generic cards with fake copy.
 
 ## Setup
 
@@ -91,13 +100,28 @@ Reference-demo behavior:
 user asks for an app or topic
   -> Start menu or taskbar Ask VibeOS launches the request
   -> VibeOS opens a plausible retro application window immediately
+  -> generated apps reveal chrome, content, fake data, and details step by step
+  -> the reveal completes quickly, like a webpage loading rather than a long animation
   -> local runtime handles fast demo props or the model invents UI, content, labels, fake data, and simulated responses
   -> the renderer keeps the shell stable while the generated app sells the illusion
+```
+
+App Search behavior:
+
+```text
+user types into App Search
+  -> local shell updates the input immediately
+  -> result pane shows a small loading/thinking state when needed
+  -> VibeOS asynchronously predicts useful matches and next actions
+  -> results appear live with icons, names, descriptions, and highlighted selection
+  -> Enter/click launches the selected built-in app, generated app, website-like page, fake file, or setting
 ```
 
 Local-runtime apps live in `src/renderer/components/LocalAppRuntime.tsx`. They use normal React controls and renderer state, so routine typing and clicks do not rebuild the DOM from model output.
 
 Browser is currently a hybrid demo prop: its chrome and address entry stay local, while external-looking routes are rendered as simulated offline search results or articles. It does not access the real internet.
+
+Browser pages should be recognizable facsimiles. Google-like pages should feel like old search pages, Wikipedia-like pages should use article and infobox structure, example.com-like pages should stay plain and document-like, and fake sites should borrow the visual language of the requested site category.
 
 Generated apps use the blocks-only protocol:
 
@@ -114,11 +138,17 @@ Each `GeneratedUiBlock` has an `id`, a role such as `menubar`, `toolbar`, `sideb
 
 There is no compatibility HTML channel. Generated app behavior is expressed through structured blocks plus delegated `click`, `input`, `submit`, and `keyboard` events. Initial generated app results are cached in browser memory so reopening the same generated app can hydrate a new session without waiting for the model again.
 
+The desired future protocol is incremental. `GenerateUiResult.blocks` remains the safe renderer contract, but generated startup should be able to apply ordered additions or updates: title first, empty shell next, menu or toolbar next, main panels next, then data and status details. Until that protocol exists, the renderer may simulate the same effect by staging a complete result over a short page-load-like burst.
+
 ## Experience Targets
 
 - Recreate the reference video's "fully hallucinated operating system" premise, not a serious productivity OS.
 - Make custom app creation the main trick: search for or request any software, then generate a believable app window for it.
+- Make App Search feel like a native Windows feature that can find or invent anything, with live suggestions that keep up with typing.
+- Treat visible step-by-step UI creation as part of the trick, not as a loading state to hide.
+- Keep staged creation fast. The user should notice the app assembling itself, then be able to use it almost immediately.
 - Prefer retro Windows desktop conventions: taskbar, window chrome, classic app names, dense controls, fake system utilities, and old software nostalgia.
+- Make simulated websites and in-app pages visually specific to their references or genres, rather than abstract generated panels.
 - Let generated apps be confidently fictional, funny, and personalized when the prompt asks for it.
 - Keep simulated browsing obviously offline and model-generated. The answer to "is this AI?" should always be yes.
 - Support built-in classics such as Notepad, Calculator, and Browser as fast local props for the demo, while generated apps provide the hallucinated spectacle.

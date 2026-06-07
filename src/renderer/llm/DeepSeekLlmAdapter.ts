@@ -50,7 +50,8 @@ const GenerateUiResultSchema = z.object({
   narration: z.string().nullable().optional(),
   blocks: z.array(GeneratedUiBlockSchema).min(1).max(20)
 });
-const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_TIMEOUT_MS = 45000;
+const MAX_OUTPUT_TOKENS = 2500;
 const DEEPSEEK_PROXY_BASE_URL = '/deepseek-api';
 
 interface DeepSeekChatResponse {
@@ -113,6 +114,9 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
       body: JSON.stringify({
         model: this.model,
         messages,
+        thinking: { type: 'disabled' },
+        max_tokens: MAX_OUTPUT_TOKENS,
+        stream: false,
         temperature: 0.4,
         response_format: { type: 'json_object' }
       })

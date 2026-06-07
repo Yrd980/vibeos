@@ -134,12 +134,32 @@ function openingBlocks(appName: string) {
 function generatingBlocks(appName: string) {
   return [
     {
+      id: 'generating-menu',
+      role: 'menubar' as const,
+      actions: ['File', 'Edit', 'Generate', 'Tools', 'Help'].map((label) => ({ id: `generating-${label.toLowerCase()}`, label }))
+    },
+    {
+      id: 'generating-toolbar',
+      role: 'toolbar' as const,
+      text: 'VibeOS is hallucinating a new app shell.',
+      actions: [
+        { id: 'generating-ui', label: 'UI blocks', value: 'UI blocks', variant: 'primary' as const },
+        { id: 'generating-data', label: 'Fake data', value: 'Fake data' },
+        { id: 'generating-events', label: 'Safe events', value: 'Safe events' }
+      ]
+    },
+    {
       id: 'generating',
       role: 'main' as const,
       className: 'v-app v-generated',
       title: appName,
-      text: 'VibeOS is hallucinating a new app shell.',
-      items: ['Sketching controls', 'Inventing state model', 'Binding safe events']
+      text: 'Generating a retro window from the prompt, including invented controls, fake data, and local event wiring.',
+      items: ['Reading prompt', 'Choosing 90s app genre', 'Laying out menus and panels', 'Writing simulated status text']
+    },
+    {
+      id: 'generating-status',
+      role: 'status' as const,
+      text: 'AI generation in progress. This app is simulated inside VibeOS.'
     }
   ];
 }

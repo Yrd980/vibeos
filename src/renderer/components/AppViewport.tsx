@@ -116,7 +116,7 @@ export default function AppViewport({ blocks, loading, onEvent }: AppViewportPro
 
   return (
     <div className="app-viewport">
-      {loading ? <div className="viewport-loading">AI refining...</div> : null}
+      {loading ? <div className="viewport-loading">AI generating UI...</div> : null}
       <div ref={rootRef} className="generated-surface">
         {blocks.map((block) => (
           <GeneratedBlockView block={block} key={block.id} />
@@ -164,9 +164,9 @@ function GeneratedBlockView({ block }: { block: GeneratedUiBlock }): React.JSX.E
         </div>
       ) : null}
       {block.items?.length ? (
-        <ul className="v-list">
+        <ul className={block.role === 'menubar' || block.role === 'toolbar' ? 'v-inline-items' : 'v-list'}>
           {block.items.map((item) => (
-            <li className="v-list-item" key={item}>
+            <li className={block.role === 'menubar' || block.role === 'toolbar' ? undefined : 'v-list-item'} key={item}>
               {item}
             </li>
           ))}

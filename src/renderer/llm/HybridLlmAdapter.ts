@@ -14,16 +14,12 @@ export class HybridLlmAdapter implements LlmAdapter {
       return this.localAdapter.generateNextUi(input);
     }
 
-    if (shouldStayLocalForGeneratedApp(input)) {
-      return this.localAdapter.generateNextUi(input);
-    }
-
     try {
-      const result = await this.getDeepSeekAdapter().generateNextUi(input);
-      return isProviderErrorResult(result) ? this.localAdapter.generateNextUi(input) : result;
+      return await this.getDeepSeekAdapter().generateNextUi(input);
     } catch (error) {
-      console.warn(`DeepSeek unavailable; using local VibeOS fallback: ${error instanceof Error ? error.message : String(error)}`);
-      return this.localAdapter.generateNextUi(input);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`DeepSeek unavailable: ${message}`);
+      return providerErrorResult(input.appName, message);
     }
   }
 
@@ -33,30 +29,20 @@ export class HybridLlmAdapter implements LlmAdapter {
   }
 }
 
-function shouldStayLocalForGeneratedApp(input: GenerateUiInput): boolean {
-  if (!isLocalGeneratedState(input.currentState)) {
-    return false;
-  }
-  if (input.event.type === 'input') {
-    return true;
-  }
-  if (input.event.type === 'click') {
-    return input.event.targetText !== 'Dream Up';
-  }
-  return false;
-}
-
-function isLocalGeneratedState(state: unknown): boolean {
-  return Boolean(
-    state &&
-      typeof state === 'object' &&
-      ((state as { mode?: unknown }).mode === 'starter' || (state as { mode?: unknown }).mode === 'generated')
-  );
-}
-
-function isProviderErrorResult(result: GenerateUiResult): boolean {
-  return Boolean(
-    result.title.includes('Provider Error') ||
-      (result.state && typeof result.state === 'object' && 'error' in result.state)
-  );
+function providerErrorResult(appName: string, message: string): GenerateUiResult {
+  const safeMessage = message.replace(/[<>&"']/g, '');
+  return {
+    title: `${appName} - Provider Error`,
+    state: { error: safeMessage },
+    narration: safeMessage,
+    blocks: [
+      {
+        id: 'provider-error',
+        role: 'main',
+        className: 'v-app',
+        title: 'DeepSeek unavailable',
+        text: `VibeOS could not generate this app through DeepSeek. ${safeMessage}`
+      }
+    ]
+  };
 }
