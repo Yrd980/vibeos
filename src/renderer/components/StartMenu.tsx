@@ -1,24 +1,5 @@
 import { useMemo, useState } from 'react';
-
-const APPS = ['Calculator', 'Notepad', 'Browser', 'File Explorer', 'Terminal', 'Encarta 98', 'Paint', 'Settings'];
-const ASK_VIBEOS_EXAMPLES = [
-  'Encarta 98 about Mark Russinovich',
-  'Commander XE but rude',
-  'Microsoft Money 95 for Scott Hanselman',
-  'Paint with a normal picture of Scott Hanselman',
-  'Nested OS simulator'
-];
-
-const ICONS: Record<string, string> = {
-  Calculator: 'C',
-  Notepad: 'N',
-  Browser: 'B',
-  'File Explorer': 'F',
-  Terminal: 'T',
-  'Encarta 98': 'E',
-  Paint: 'P',
-  Settings: 'S'
-};
+import { APP_ICONS, ASK_VIBEOS_EXAMPLES, BUILT_IN_APP_NAMES, matchesBuiltInAppName } from '../apps/catalog';
 
 interface StartMenuProps {
   recentGeneratedApps: string[];
@@ -30,9 +11,9 @@ export default function StartMenu({ recentGeneratedApps, onLaunch }: StartMenuPr
   const filteredApps = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) {
-      return APPS;
+      return BUILT_IN_APP_NAMES;
     }
-    return APPS.filter((appName) => appName.toLowerCase().includes(normalized));
+    return BUILT_IN_APP_NAMES.filter((appName) => appName.toLowerCase().includes(normalized));
   }, [query]);
   const visibleRecentApps = useMemo(
     () =>
@@ -92,11 +73,11 @@ export default function StartMenu({ recentGeneratedApps, onLaunch }: StartMenuPr
         <div className="start-menu-section-title">Apps</div>
         {filteredApps.map((appName) => (
           <button key={appName} className="start-menu-item" onClick={() => onLaunch(appName)}>
-            <span className="app-icon">{ICONS[appName]}</span>
+            <span className="app-icon">{APP_ICONS[appName]}</span>
             <span>{appName}</span>
           </button>
         ))}
-        {customAppName && !APPS.some((appName) => appName.toLowerCase() === customAppName.toLowerCase()) ? (
+        {customAppName && !matchesBuiltInAppName(customAppName) ? (
           <button className="start-menu-item is-generated" onClick={() => onLaunch(customAppName)}>
             <span className="app-icon">AI</span>
             <span>Run "{customAppName}"</span>
@@ -106,5 +87,3 @@ export default function StartMenu({ recentGeneratedApps, onLaunch }: StartMenuPr
     </div>
   );
 }
-
-export { APPS, ASK_VIBEOS_EXAMPLES, ICONS };

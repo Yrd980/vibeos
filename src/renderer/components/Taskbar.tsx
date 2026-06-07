@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { getAppIcon } from '../apps/catalog';
 import { useDesktopStore } from '../state/desktopStore';
-import { ICONS } from './StartMenu';
 
 interface TaskbarProps {
   onStartClick(): void;
@@ -52,7 +52,7 @@ export default function Taskbar({ onStartClick, onAsk }: TaskbarProps): React.JS
             className={`taskbar-item ${appWindow.minimized ? 'is-minimized' : ''}`}
             onClick={() => (appWindow.minimized ? restoreWindow(appWindow.windowId) : minimizeWindow(appWindow.windowId))}
           >
-            <span className="mini-icon">{ICONS[appWindow.appName] ?? 'A'}</span>
+            <span className="mini-icon">{getAppIcon(appWindow.appName)}</span>
             <span>{appWindow.title}</span>
           </button>
         ))}

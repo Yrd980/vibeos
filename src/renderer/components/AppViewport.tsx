@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react';
-import type { AppEvent } from '../../shared/types';
-import { sanitizeModelHtml } from '../utils/sanitizeHtml';
+import { useEffect, useRef } from 'react';
+import type { AppEvent, GeneratedUiAction, GeneratedUiBlock, GeneratedUiField } from '../../shared/types';
+import { SAFE_CLASS_NAME_SET } from '../utils/generatedUiVocabulary';
 
 interface AppViewportProps {
-  html: string;
+  blocks: GeneratedUiBlock[];
   loading: boolean;
   onEvent(event: AppEvent): void;
 }
 
-export default function AppViewport({ html, loading, onEvent }: AppViewportProps): React.JSX.Element {
+export default function AppViewport({ blocks, loading, onEvent }: AppViewportProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputTimers = useRef(new Map<string, number>());
   const onEventRef = useRef(onEvent);
-  const cleanHtml = useMemo(() => sanitizeModelHtml(html), [html]);
 
   useEffect(() => {
     onEventRef.current = onEvent;
@@ -118,7 +117,11 @@ export default function AppViewport({ html, loading, onEvent }: AppViewportProps
   return (
     <div className="app-viewport">
       {loading ? <div className="viewport-loading">AI refining...</div> : null}
-      <div ref={rootRef} className="generated-surface" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
+      <div ref={rootRef} className="generated-surface">
+        {blocks.map((block) => (
+          <GeneratedBlockView block={block} key={block.id} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -135,4 +138,128 @@ function collectFieldValues(root: HTMLElement): Record<string, string> {
 
 function capText(value: string): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, 240);
+}
+
+function GeneratedBlockView({ block }: { block: GeneratedUiBlock }): React.JSX.Element {
+  return (
+    <section
+      className={blockClassName(block)}
+      data-vibe-block-id={block.id}
+      data-vibe-block-role={block.role}
+    >
+      {block.title ? <h1>{block.title}</h1> : null}
+      {block.text ? <p className={block.role === 'status' ? 'v-muted' : undefined}>{block.text}</p> : null}
+      {block.actions?.length ? (
+        <div className={block.role === 'menubar' ? 'v-menubar' : 'v-toolbar'}>
+          {block.actions.map((action) => (
+            <ActionButton action={action} key={action.id} />
+          ))}
+        </div>
+      ) : null}
+      {block.fields?.length ? (
+        <div className="v-row">
+          {block.fields.map((field) => (
+            <GeneratedField field={field} key={`${field.id}-${field.value}`} />
+          ))}
+        </div>
+      ) : null}
+      {block.items?.length ? (
+        <ul className="v-list">
+          {block.items.map((item) => (
+            <li className="v-list-item" key={item}>
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {block.table ? (
+        <table className="v-table">
+          <thead>
+            <tr>
+              {block.table.columns.map((column) => (
+                <th key={column}>{column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.table.rows.map((row, rowIndex) => (
+              <tr key={`${block.id}-${rowIndex}`}>
+                {block.table?.columns.map((column, columnIndex) => (
+                  <td key={`${column}-${columnIndex}`}>{row[columnIndex] ?? ''}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </section>
+  );
+}
+
+function ActionButton({ action }: { action: GeneratedUiAction }): React.JSX.Element {
+  return (
+    <button
+      className={actionClassName(action)}
+      data-vibe-action={action.id}
+      data-vibe-id={action.id}
+      data-vibe-value={action.value ?? action.label}
+      type="button"
+    >
+      {action.label}
+    </button>
+  );
+}
+
+function GeneratedField({ field }: { field: GeneratedUiField }): React.JSX.Element {
+  if (field.multiline) {
+    return (
+      <textarea
+        aria-label={field.label}
+        className="v-textarea"
+        data-vibe-field={field.label}
+        data-vibe-id={field.id}
+        defaultValue={field.value}
+        placeholder={field.placeholder}
+      />
+    );
+  }
+
+  return (
+    <input
+      aria-label={field.label}
+      className="v-input"
+      data-vibe-field={field.label}
+      data-vibe-id={field.id}
+      defaultValue={field.value}
+      placeholder={field.placeholder}
+    />
+  );
+}
+
+function blockClassName(block: GeneratedUiBlock): string {
+  const base = ['v-block'];
+  if (block.className && isSafeGeneratedClassName(block.className)) {
+    base.push(block.className);
+  } else if (block.role === 'main') {
+    base.push('v-app');
+  } else if (block.role === 'panel' || block.role === 'sidebar') {
+    base.push('v-panel');
+  } else if (block.role === 'status') {
+    base.push('v-status-bar');
+  }
+  return base.join(' ');
+}
+
+function actionClassName(action: GeneratedUiAction): string {
+  if (action.variant === 'primary') {
+    return 'v-button v-primary';
+  }
+  if (action.variant === 'danger') {
+    return 'v-button v-danger';
+  }
+  return 'v-button';
+}
+
+function isSafeGeneratedClassName(className: string): boolean {
+  return className.split(/\s+/).every((candidate) => SAFE_CLASS_NAME_SET.has(candidate));
 }

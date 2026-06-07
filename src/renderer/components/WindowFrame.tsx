@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { AppEvent } from '../../shared/types';
 import type { DesktopWindow } from '../state/desktopStore';
 import { useDesktopStore } from '../state/desktopStore';
-import { getVibeOsApi } from '../utils/vibeosApi';
-import AppViewport from './AppViewport';
-import LocalAppRuntime, { isLocalRuntimeApp } from './LocalAppRuntime';
+import AppWindowContent, { useAppWindowExecution } from './AppWindowContent';
 
 interface WindowFrameProps {
   window: DesktopWindow;
@@ -16,10 +13,9 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
   const closeWindow = useDesktopStore((state) => state.closeWindow);
   const minimizeWindow = useDesktopStore((state) => state.minimizeWindow);
   const toggleMaximize = useDesktopStore((state) => state.toggleMaximize);
-  const updateWindowResult = useDesktopStore((state) => state.updateWindowResult);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
   const [resize, setResize] = useState<{ startX: number; startY: number; width: number; height: number } | null>(null);
-  const [showBusy, setShowBusy] = useState(false);
+  const execution = useAppWindowExecution(window);
   const isTopWindow = useDesktopStore((state) => {
     const visibleWindows = state.windows.filter((candidate) => !candidate.minimized);
     const topZIndex = Math.max(...visibleWindows.map((candidate) => candidate.zIndex));
@@ -67,38 +63,8 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
         zIndex: window.zIndex
       };
 
-  async function sendAppEvent(event: AppEvent): Promise<void> {
-    const busyTimer = globalThis.setTimeout(() => {
-      setShowBusy(true);
-      updateWindow(window.windowId, { loading: true });
-    }, 250);
-    try {
-      const result = await getVibeOsApi().sendAppEvent(window.appSessionId, event);
-      globalThis.clearTimeout(busyTimer);
-      setShowBusy(false);
-      updateWindowResult(window.windowId, result);
-    } catch (error) {
-      globalThis.clearTimeout(busyTimer);
-      setShowBusy(false);
-      updateWindowResult(window.windowId, {
-        title: `${window.appName} - Error`,
-        state: { error: String(error) },
-        narration: String(error),
-        html: `
-          <div class="v-app">
-            <div class="v-card">
-              <h1>Session error</h1>
-              <p class="v-muted">The app session could not update.</p>
-            </div>
-          </div>`
-      });
-    }
-  }
-
   async function handleClose(): Promise<void> {
-    if (!isLocalRuntimeApp(window.appName)) {
-      await getVibeOsApi().closeAppSession(window.appSessionId).catch(() => ({ closed: false }));
-    }
+    await execution.closeSession();
     closeWindow(window.windowId);
   }
 
@@ -118,7 +84,7 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
         }}
       >
         <span className="window-title">{window.title}</span>
-        {showBusy || window.loading ? <span className="window-status">Thinking</span> : null}
+        {execution.busy || window.loading ? <span className="window-status">Thinking</span> : null}
         <div className="window-controls" onMouseDown={(event) => event.stopPropagation()}>
           <button aria-label="Minimize" title="Minimize" onClick={() => minimizeWindow(window.windowId)}>
             _
@@ -138,15 +104,7 @@ export default function WindowFrame({ window }: WindowFrameProps): React.JSX.Ele
           event.stopPropagation();
         }}
       >
-        {isLocalRuntimeApp(window.appName) ? (
-          <LocalAppRuntime
-            appName={window.appName}
-            state={window.state}
-            onResultChange={(result) => updateWindowResult(window.windowId, result)}
-          />
-        ) : (
-          <AppViewport html={window.html} loading={showBusy || window.loading} onEvent={sendAppEvent} />
-        )}
+        <AppWindowContent window={window} execution={execution} />
       </div>
       {!window.maximized ? (
         <div

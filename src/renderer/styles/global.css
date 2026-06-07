@@ -260,6 +260,10 @@ button {
   user-select: text;
 }
 
+.generated-surface > .v-block {
+  min-height: 100%;
+}
+
 .taskbar {
   position: absolute;
   left: 0;
