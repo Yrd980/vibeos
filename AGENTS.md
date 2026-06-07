@@ -2,7 +2,7 @@
 
 ## Project Shape
 
-VibeOS is an Electron + Vite + React prototype built to recreate Zev.3R's "VibeOS - Fully Hallucinated Operating System" demo. It is not a real operating system.
+VibeOS is a Vite + React web prototype built to recreate Zev.3R's "VibeOS - Fully Hallucinated Operating System" demo. It is not a real operating system.
 
 The target experience is a retro Windows-like desktop where the user can request almost any app, topic, fake website, classic software package, rude utility, personalized finance app, Encarta-style encyclopedia, Paint scene, or nested simulated OS, and VibeOS opens a plausible hallucinated application for it. The point is to reproduce the reference video's stage-demo feeling: the shell looks stable and familiar, while the app content is confidently invented in real time.
 
@@ -10,7 +10,7 @@ The current architecture is intentionally split:
 
 - Local shell behavior stays in the renderer: desktop icons, window focus, drag, resize, minimize, maximize, close, taskbar, and local app controls.
 - Calculator, Browser, and Notepad run as React local runtimes in `src/renderer/components/LocalAppRuntime.tsx`.
-- Generated or imagined apps use Electron IPC and an LLM adapter from the main process.
+- Generated or imagined apps use a browser-side LLM adapter.
 - Model HTML is untrusted fallback output, rendered only through `AppViewport` and sanitized by `sanitizeHtml.ts`.
 - `Ask VibeOS` entry points in the Start menu and taskbar launch arbitrary app prompts as the primary product loop.
 - Recent generated prompts are tracked in renderer state so the demo can relaunch prior hallucinated apps quickly.
@@ -38,8 +38,8 @@ Important behaviors to preserve or move toward:
 - Routine UI interaction must be local first.
 - Only use DeepSeek or another LLM for generated apps, imagined content, search-like expansion, or semantic changes.
 - Keep local-runtime app state in the renderer window store.
-- Keep generated app sessions in the Electron main process `SessionStore`.
-- If a generated app is opened more than once, preserve the main-process cache behavior in `src/main/ipc.ts`.
+- Keep generated app sessions in browser memory.
+- If a generated app is opened more than once, preserve the browser-side cache behavior in `src/renderer/utils/vibeosApi.ts`.
 - Treat `GenerateUiResult.html` as a compatibility fallback, not the preferred future interface.
 - Keep Browser local for chrome/address responsiveness, but route external-looking addresses and searches into simulated offline search/article pages unless the generated-app protocol is intentionally expanded.
 - Keep `SAFE_CLASS_NAMES` in `promptTemplates.ts` and `SAFE_CLASSES` in `sanitizeHtml.ts` synchronized when adding generated UI vocabulary.
@@ -66,7 +66,7 @@ user asks for any app or topic
 
 ## Important Files
 
-- `src/renderer/components/Desktop.tsx`: app launch flow. Local runtime apps should bypass IPC.
+- `src/renderer/components/Desktop.tsx`: app launch flow. Local runtime apps should bypass the generated-app adapter.
 - `src/renderer/components/WindowFrame.tsx`: window chrome, focus, drag, resize, and runtime/viewport split.
 - `src/renderer/components/LocalAppRuntime.tsx`: React implementations for Calculator, Browser, and Notepad.
 - `src/renderer/components/StartMenu.tsx`: `Ask VibeOS` examples, app list, and recent generated prompts.
@@ -74,18 +74,18 @@ user asks for any app or topic
 - `src/renderer/components/AppViewport.tsx`: sanitized delegated-event viewport for generated HTML.
 - `src/renderer/utils/sanitizeHtml.ts`: DOMPurify allowlist for model output.
 - `src/renderer/state/desktopStore.ts`: renderer-side window state.
-- `src/main/ipc.ts`: app session IPC, request queueing, and generated app cache.
-- `src/main/llm/*`: model adapters, prompts, and generated app session state.
-- `src/shared/types.ts`: IPC and app event contracts.
+- `src/renderer/llm/*`: model adapters, prompts, and generated app session state.
+- `src/renderer/utils/vibeosApi.ts`: browser-side app session API, request queueing, and generated app cache.
+- `src/shared/types.ts`: app event and generated UI result contracts.
 
 ## Implementation Guidance
 
 - Match the existing TypeScript and React style.
 - Keep changes surgical. Do not refactor unrelated app profiles, styles, or adapters.
 - Do not add new test files unless the user explicitly asks for tests.
-- Prefer existing scripts: `npm run typecheck` and `npm run build`.
+- Prefer existing scripts: `bun run typecheck` and `bun run build`.
 - Do not use another package manager unless the repo is migrated intentionally.
-- Do not expose API keys to the renderer. DeepSeek calls must stay in the main process.
+- This is now a web-only prototype. `VITE_` keys are exposed to browser code; do not use production keys in public static deployments without adding a backend proxy.
 - Do not allow model output to add scripts, inline handlers, remote resources, iframes, arbitrary styles, or filesystem/network access.
 
 ## Local Runtime Contract
@@ -119,8 +119,8 @@ If changing the LLM protocol, migrate toward structured patches, content blocks,
 Run at least:
 
 ```powershell
-npm run typecheck
-npm run build
+bun run typecheck
+bun run build
 ```
 
 For UI changes, smoke test in the app/browser:

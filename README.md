@@ -1,6 +1,6 @@
 # VibeOS
 
-VibeOS is a Windows-friendly Electron prototype built to recreate the experience of Zev.3R's "VibeOS - Fully Hallucinated Operating System" demo. It is not a real OS. It is a desktop shell where the user can ask for familiar, obsolete, impossible, or personalized software and watch it appear as if the operating system hallucinated it on demand.
+VibeOS is a web prototype built to recreate the experience of Zev.3R's "VibeOS - Fully Hallucinated Operating System" demo. It is not a real OS. It is a desktop shell where the user can ask for familiar, obsolete, impossible, or personalized software and watch it appear as if the operating system hallucinated it on demand.
 
 The product goal is to match the reference video's feel: a bootable-looking retro desktop, classic apps, fake Internet Explorer/search pages, invented Encarta-style knowledge apps, weird custom utilities, and nested simulated systems that are generated live from the user's prompt. The system should feel like a stage demo of an operating system where every app and every fact can be confidently made up.
 
@@ -19,53 +19,53 @@ Current first-phase behavior:
 ## Setup
 
 ```powershell
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-The default provider is `mock`, so the app runs without API keys.
+The default provider is `hybrid`. Built-in apps stay local; arbitrary generated apps use DeepSeek when `VITE_DEEPSEEK_API_KEY` is set and fall back to the local mock generator when it is unavailable.
 
 ## DeepSeek
 
 Copy `.env.example` to `.env` and set:
 
 ```text
-VIBEOS_LLM_PROVIDER=hybrid
-DEEPSEEK_API_KEY=sk-...
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_BASE_URL=https://api.deepseek.com
+VITE_VIBEOS_LLM_PROVIDER=hybrid
+VITE_DEEPSEEK_API_KEY=sk-...
+VITE_DEEPSEEK_MODEL=deepseek-v4-flash
+VITE_DEEPSEEK_BASE_URL=/deepseek-api
+VITE_DEEPSEEK_PROXY_TARGET=https://api.deepseek.com
 ```
 
-`hybrid` keeps local-runtime apps instant, while using DeepSeek for generated custom apps. DeepSeek is called from the Electron main process only. The renderer never receives the API key.
+`hybrid` keeps local-runtime apps instant, while using DeepSeek for generated custom apps. In this web-only prototype, DeepSeek is called from browser code through the Vite dev proxy by default. `VITE_` variables are exposed to the client, so do not ship a production key in a public static deployment.
 
-`VIBEOS_LLM_PROVIDER=deepseek` is currently treated the same as `hybrid` so demos stay responsive. Calculator, Browser, and Notepad do not call the model for routine clicks or typing. If DeepSeek is missing, times out, or returns an unusable provider-error frame, VibeOS falls back to the local mock generator for that turn.
+`VITE_VIBEOS_LLM_PROVIDER=deepseek` sends generated-app turns directly to DeepSeek. Calculator, Browser, and Notepad do not call the model for routine clicks or typing. If DeepSeek is missing, times out, or returns an unusable provider-error frame in `hybrid`, VibeOS falls back to the local mock generator for that turn.
+
+The DeepSeek API itself is reachable with the configured key, but browser requests to `https://api.deepseek.com` can still be blocked by CORS. Keep `VITE_DEEPSEEK_BASE_URL=/deepseek-api` for local development and preview: `vite.config.ts` installs a same-origin `/deepseek-api` middleware that forwards requests to `VITE_DEEPSEEK_PROXY_TARGET`. Setting `VITE_DEEPSEEK_BASE_URL=https://api.deepseek.com` makes the browser call DeepSeek directly and may fail even when the API key is valid.
 
 ## Scripts
 
 ```powershell
-npm run dev        # Start Electron + Vite
-npm run typecheck  # TypeScript check
-npm run build      # Build main, preload, and renderer
-npm run dist:win   # Build a Windows installer and portable exe
+bun run dev        # Start Vite web dev server
+bun run typecheck  # TypeScript check
+bun run build      # Build static web app
+bun run preview    # Preview the production build
 ```
 
 ## Security Model
 
-- Electron uses `contextIsolation`, disabled `nodeIntegration`, and a sandboxed renderer.
-- The preload exposes only `createAppSession`, `sendAppEvent`, and `closeAppSession`.
 - LLM HTML is treated as untrusted.
 - The renderer sanitizes generated HTML with a strict allowlist.
 - Model JavaScript, iframes, forms, remote resources, inline handlers, and arbitrary CSS are stripped.
 - Local-runtime apps use React controls and renderer state for routine interaction.
-- Generated app surfaces use delegated events and send only small structured events to the main process.
+- Generated app surfaces use delegated events and send only small structured events to the browser-side session adapter.
 
 ## Architecture
 
 ```text
-src/main        Electron main process, IPC, sessions, LLM adapters
-src/preload     Narrow contextBridge API
 src/renderer    React desktop shell and safe app viewport
-src/shared      IPC and app event types
+src/renderer/llm Browser-side mock, hybrid, and DeepSeek adapters
+src/shared      app event and generated UI result types
 ```
 
 Runtime flow:
@@ -74,7 +74,7 @@ Runtime flow:
 user click or input
   -> renderer desktop/window shell
   -> local runtime when the app is Calculator, Browser, or Notepad
-  -> IPC/LLM only for generated or imagined app surfaces
+  -> browser-side LLM adapter only for generated or imagined app surfaces
   -> sanitized generated HTML fallback for model-built apps
 ```
 
@@ -92,7 +92,7 @@ Local-runtime apps live in `src/renderer/components/LocalAppRuntime.tsx`. They u
 
 Browser is currently a hybrid demo prop: its chrome and address entry stay local, while external-looking routes are rendered as simulated offline search results or articles. It does not access the real internet.
 
-Generated apps still use `GenerateUiResult { title, html, state, narration }` for compatibility. Their HTML is sanitized and rendered through `AppViewport`. Initial generated app results are cached in the Electron main process so reopening the same generated app can hydrate a new session without waiting for the model again.
+Generated apps still use `GenerateUiResult { title, html, state, narration }` for compatibility. Their HTML is sanitized and rendered through `AppViewport`. Initial generated app results are cached in browser memory so reopening the same generated app can hydrate a new session without waiting for the model again.
 
 ## Experience Targets
 
@@ -109,8 +109,8 @@ Generated apps still use `GenerateUiResult { title, html, state, narration }` fo
 After code changes, run:
 
 ```powershell
-npm run typecheck
-npm run build
+bun run typecheck
+bun run build
 ```
 
 Useful UI smoke checks:

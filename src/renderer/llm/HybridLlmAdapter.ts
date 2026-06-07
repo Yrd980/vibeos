@@ -14,7 +14,7 @@ export class HybridLlmAdapter implements LlmAdapter {
       return this.localAdapter.generateNextUi(input);
     }
 
-    if (input.event.type === 'init' || shouldStayLocalForGeneratedApp(input)) {
+    if (shouldStayLocalForGeneratedApp(input)) {
       return this.localAdapter.generateNextUi(input);
     }
 

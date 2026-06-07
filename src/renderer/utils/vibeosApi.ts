@@ -1,43 +1,67 @@
-import { MockLlmAdapter } from '../../main/llm/MockLlmAdapter';
+import { DeepSeekLlmAdapter } from '../llm/DeepSeekLlmAdapter';
+import { HybridLlmAdapter } from '../llm/HybridLlmAdapter';
+import { MockLlmAdapter } from '../llm/MockLlmAdapter';
+import type { LlmAdapter } from '../llm/types';
 import type { AppEvent, GenerateUiInput, GenerateUiResult, VibeOsApi } from '../../shared/types';
 
-const browserPreviewSessions = new Map<string, BrowserPreviewSession>();
-const browserPreviewAdapter = new MockLlmAdapter();
+const webSessions = new Map<string, WebAppSession>();
+const generatedAppCache = new Map<string, GenerateUiResult>();
+const adapter = createAdapter();
 
-type BrowserPreviewSession = {
+type WebAppSession = {
   appName: string;
   currentTitle?: string;
   currentHtml?: string;
   currentState?: unknown;
+  queue: Promise<unknown>;
 };
 
 export function getVibeOsApi(): VibeOsApi {
-  if (window.vibeos) {
-    return window.vibeos;
-  }
-
-  return browserPreviewApi;
+  return webApi;
 }
 
-const browserPreviewApi: VibeOsApi = {
+const webApi: VibeOsApi = {
   async createAppSession(appName) {
+    const normalizedAppName = appName.trim();
     const appSessionId = crypto.randomUUID();
-    browserPreviewSessions.set(appSessionId, { appName });
-    const result = await runBrowserPreviewTurn(appSessionId, { type: 'init', appName });
+    webSessions.set(appSessionId, { appName: normalizedAppName, queue: Promise.resolve() });
+
+    const cachedResult = generatedAppCache.get(cacheKey(normalizedAppName));
+    if (cachedResult) {
+      const result = cloneGenerateUiResult(cachedResult);
+      hydrateSession(appSessionId, result);
+      return { appSessionId, result };
+    }
+
+    const result = await runQueuedTurn(appSessionId, { type: 'init', appName: normalizedAppName });
+    generatedAppCache.set(cacheKey(normalizedAppName), cloneGenerateUiResult(result));
     return { appSessionId, result };
   },
   async sendAppEvent(appSessionId, event) {
-    return runBrowserPreviewTurn(appSessionId, event);
+    return runQueuedTurn(appSessionId, event);
   },
   async closeAppSession(appSessionId) {
-    return { closed: browserPreviewSessions.delete(appSessionId) };
+    return { closed: webSessions.delete(appSessionId) };
   }
 };
 
-async function runBrowserPreviewTurn(appSessionId: string, event: AppEvent): Promise<GenerateUiResult> {
-  const session = browserPreviewSessions.get(appSessionId);
+function runQueuedTurn(appSessionId: string, event: AppEvent): Promise<GenerateUiResult> {
+  const session = webSessions.get(appSessionId);
   if (!session) {
-    throw new Error('Browser preview session was not found.');
+    throw new Error('Web app session was not found.');
+  }
+
+  const next = session.queue
+    .catch(() => undefined)
+    .then(() => runTurn(appSessionId, event));
+  session.queue = next;
+  return next;
+}
+
+async function runTurn(appSessionId: string, event: AppEvent): Promise<GenerateUiResult> {
+  const session = webSessions.get(appSessionId);
+  if (!session) {
+    throw new Error('Web app session was not found.');
   }
 
   const input: GenerateUiInput = {
@@ -48,9 +72,44 @@ async function runBrowserPreviewTurn(appSessionId: string, event: AppEvent): Pro
     currentState: session.currentState,
     event
   };
-  const result = await browserPreviewAdapter.generateNextUi(input);
+  const result = await adapter.generateNextUi(input);
+  hydrateSession(appSessionId, result);
+  return result;
+}
+
+function hydrateSession(appSessionId: string, result: GenerateUiResult): void {
+  const session = webSessions.get(appSessionId);
+  if (!session) {
+    return;
+  }
   session.currentTitle = result.title;
   session.currentHtml = result.html;
   session.currentState = result.state;
-  return result;
+}
+
+function createAdapter(): LlmAdapter {
+  const provider = (import.meta.env.VITE_VIBEOS_LLM_PROVIDER ?? 'hybrid').toLowerCase();
+  if (provider === 'deepseek') {
+    return new DeepSeekLlmAdapter();
+  }
+  if (provider === 'hybrid') {
+    return new HybridLlmAdapter();
+  }
+  if (provider !== 'mock') {
+    console.warn(`Unknown VITE_VIBEOS_LLM_PROVIDER "${provider}". Falling back to mock.`);
+  }
+  return new MockLlmAdapter();
+}
+
+function cacheKey(appName: string): string {
+  return appName.trim().toLowerCase();
+}
+
+function cloneGenerateUiResult(result: GenerateUiResult): GenerateUiResult {
+  return {
+    title: result.title,
+    html: result.html,
+    state: structuredClone(result.state),
+    narration: result.narration ?? null
+  };
 }

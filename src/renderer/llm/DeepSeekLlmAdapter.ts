@@ -23,14 +23,10 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
   private readonly baseUrl: string;
   private readonly model: string;
 
-  constructor(env: NodeJS.ProcessEnv = process.env) {
-    this.apiKey = env.DEEPSEEK_API_KEY ?? '';
-    this.baseUrl = (env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com').replace(/\/$/, '');
-    this.model = env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash';
-
-    if (!this.apiKey) {
-      throw new Error('DEEPSEEK_API_KEY is required when VIBEOS_LLM_PROVIDER=hybrid or deepseek. Use VIBEOS_LLM_PROVIDER=mock to run without a key.');
-    }
+  constructor(env: ImportMetaEnv = import.meta.env) {
+    this.apiKey = env.VITE_DEEPSEEK_API_KEY ?? '';
+    this.baseUrl = (env.VITE_DEEPSEEK_BASE_URL ?? '/deepseek-api').replace(/\/$/, '');
+    this.model = env.VITE_DEEPSEEK_MODEL ?? 'deepseek-v4-flash';
   }
 
   async generateNextUi(input: GenerateUiInput): Promise<GenerateUiResult> {
@@ -64,6 +60,10 @@ export class DeepSeekLlmAdapter implements LlmAdapter {
   }
 
   private async request(messages: Array<{ role: 'system' | 'user'; content: string }>): Promise<string> {
+    if (!this.apiKey) {
+      throw new Error('VITE_DEEPSEEK_API_KEY is required when VITE_VIBEOS_LLM_PROVIDER=hybrid or deepseek. Use VITE_VIBEOS_LLM_PROVIDER=mock to run without a key.');
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
