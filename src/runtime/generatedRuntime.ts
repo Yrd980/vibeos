@@ -1848,11 +1848,11 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
         (props.items == null || isStringArray(props.items, maxItems, 120))
       );
     case 'list':
-      return props.items == null || isRecordArray(props.items, maxItems);
+      return props.items == null || isListItems(props.items, maxItems);
     case 'table':
       return (
         (props.columns == null || isStringArray(props.columns, 12, 80)) &&
-        (props.rows == null || (Array.isArray(props.rows) && props.rows.length <= maxItems))
+        (props.rows == null || isTableRows(props.rows, maxItems, 12, 160))
       );
     case 'panel':
     case 'group-box':
@@ -1873,7 +1873,7 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
     case 'form':
       return (
         validatePanelProps(props) &&
-        (props.fields == null || isRecordArray(props.fields, 32)) &&
+        (props.fields == null || isFormFields(props.fields, 32)) &&
         validateSensitiveFormControls(props)
       );
     case 'text':
@@ -1884,11 +1884,12 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
         (props.title == null || isLimitedString(props.title, 160))
       );
     case 'rich-text-spans':
-      return props.spans == null || isRecordArray(props.spans, maxItems);
+      return props.spans == null || isTextSpans(props.spans, maxItems);
     case 'image-placeholder':
+      return validatePanelProps(props) && (props.items == null || isRecordArray(props.items, maxItems));
     case 'chart':
     case 'timeline':
-      return validatePanelProps(props) && (props.items == null || isRecordArray(props.items, maxItems));
+      return validatePanelProps(props) && (props.items == null || isLabelValueItems(props.items, maxItems));
     case 'generated-bitmap':
       return (
         validatePanelProps(props) &&
@@ -1896,12 +1897,12 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
         (props.altText == null || isLimitedString(props.altText, 240))
       );
     case 'property-sheet':
-      return props.groups == null || isRecordArray(props.groups, 16);
+      return props.groups == null || isPropertyGroups(props.groups, 16);
     case 'file-list':
       return (
         (props.path == null || isLimitedString(props.path, 240)) &&
         (props.columns == null || isStringArray(props.columns, 12, 80)) &&
-        (props.files == null || isRecordArray(props.files, maxItems))
+        (props.files == null || isFileItems(props.files, maxItems))
       );
     case 'paint-canvas':
       return (
@@ -1923,7 +1924,7 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
       return (
         (props.wallpaper == null || isLimitedString(props.wallpaper, 80)) &&
         (props.icons == null || isStringArray(props.icons, 24, 80)) &&
-        (props.windows == null || isRecordArray(props.windows, 12)) &&
+        (props.windows == null || isNestedWindows(props.windows, 12)) &&
         (props.taskbar == null || isStringArray(props.taskbar, 16, 80))
       );
     case 'search-home':
@@ -1936,7 +1937,7 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
     case 'search-results':
       return (
         (props.query == null || isLimitedString(props.query, 240)) &&
-        (props.results == null || isRecordArray(props.results, maxItems))
+        (props.results == null || isSearchResults(props.results, maxItems))
       );
     case 'wiki-article':
       return (
@@ -1944,15 +1945,15 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
         (props.displayUrl == null || isLimitedString(props.displayUrl, 240)) &&
         (props.contents == null || isStringArray(props.contents, 24, 120)) &&
         (props.lead == null || isLimitedString(props.lead, maxTextLength)) &&
-        (props.infobox == null || Array.isArray(props.infobox)) &&
-        (props.sections == null || isRecordArray(props.sections, 32))
+        (props.infobox == null || isInfoboxRows(props.infobox, 24)) &&
+        (props.sections == null || isArticleSections(props.sections, 32))
       );
     case 'encyclopedia-article':
       return (
         (props.title == null || isLimitedString(props.title, 160)) &&
         (props.lead == null || isLimitedString(props.lead, maxTextLength)) &&
         (props.sections == null || isStringArray(props.sections, 32, 120)) &&
-        (props.infobox == null || Array.isArray(props.infobox)) &&
+        (props.infobox == null || isInfoboxRows(props.infobox, 24)) &&
         (props.caption == null || isLimitedString(props.caption, 240))
       );
     case 'plain-example-page':
@@ -2116,6 +2117,127 @@ function isRecordArray(value: unknown, maxCount: number) {
     value.length <= maxCount &&
     value.every((item) => typeof item === 'object' && item !== null && !Array.isArray(item))
   );
+}
+
+function isListItems(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((item) => {
+      if (!isRecord(item)) return false;
+      return (
+        (item.id == null || isLimitedString(item.id, 80)) &&
+        isLimitedString(item.title, 160) &&
+        (item.meta == null || isLimitedString(item.meta, 160))
+      );
+    })
+  );
+}
+
+function isTableRows(value: unknown, maxCount: number, maxCells: number, maxCellLength: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((row) => Array.isArray(row) && row.length <= maxCells && row.every((cell) => isLimitedString(String(cell), maxCellLength)))
+  );
+}
+
+function isFormFields(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((field) => {
+      if (!isRecord(field)) return false;
+      return (
+        isLimitedString(field.label, 160) &&
+        isLimitedString(field.value, 240) &&
+        (field.disabled == null || typeof field.disabled === 'boolean') &&
+        (field.type == null || isLimitedString(field.type, 40))
+      );
+    })
+  );
+}
+
+function isTextSpans(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((span) => isRecord(span) && isLimitedString(span.text, 1000))
+  );
+}
+
+function isLabelValueItems(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((item) => isRecord(item) && isLimitedString(item.label, 120) && isLimitedString(item.value, 240))
+  );
+}
+
+function isPropertyGroups(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((group) => isRecord(group) && isLimitedString(group.title, 120) && isStringArray(group.rows, 24, 160))
+  );
+}
+
+function isFileItems(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((file) =>
+      isRecord(file) &&
+      isLimitedString(file.name, 160) &&
+      isLimitedString(file.type, 120) &&
+      isLimitedString(file.size, 40) &&
+      isLimitedString(file.modified, 120),
+    )
+  );
+}
+
+function isNestedWindows(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((windowValue) => isRecord(windowValue) && isLimitedString(windowValue.title, 120) && isLimitedString(windowValue.text, 400))
+  );
+}
+
+function isSearchResults(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((result) =>
+      isRecord(result) &&
+      isLimitedString(result.title, 160) &&
+      isLimitedString(result.url, 240) &&
+      isLimitedString(result.snippet, 320),
+    )
+  );
+}
+
+function isArticleSections(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((section) => isRecord(section) && isLimitedString(section.heading, 160) && isLimitedString(section.text, maxTextLength))
+  );
+}
+
+function isInfoboxRows(value: unknown, maxCount: number) {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxCount &&
+    value.every((row) =>
+      isLimitedString(row, 160) ||
+      (Array.isArray(row) && row.length === 2 && row.every((cell) => isLimitedString(cell, 160))),
+    )
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && validatePropBag(value as Record<string, unknown>);
 }
 
 function block(
