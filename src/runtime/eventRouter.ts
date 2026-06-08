@@ -6,6 +6,7 @@ export type KernelEventHandlers = {
   closeSearch(): void;
   setSearchQuery(query: string): void;
   selectDesktopIcon(iconId: string): void;
+  markSemanticResolving(event: Extract<KernelEvent, { type: 'shell.semanticSuggestionsResolving' }>): void;
   applySemanticSuggestions(event: Extract<KernelEvent, { type: 'shell.semanticSuggestionsReady' }>): void;
   moveSearchSelection(delta: number): void;
   launchSelectedSearch(): void;
@@ -50,6 +51,9 @@ export function routeKernelEvent(event: KernelEvent, handlers: KernelEventHandle
       break;
     case 'shell.selectDesktopIcon':
       handlers.selectDesktopIcon(event.iconId);
+      break;
+    case 'shell.semanticSuggestionsResolving':
+      handlers.markSemanticResolving(event);
       break;
     case 'shell.semanticSuggestionsReady':
       handlers.applySemanticSuggestions(event);

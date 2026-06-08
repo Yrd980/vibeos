@@ -88,6 +88,7 @@ export type ShellState = {
   semanticSuggestions: SearchResult[];
   semanticStatus: 'idle' | 'debouncing' | 'resolving';
   semanticRequestId: number;
+  semanticTimerId?: ReturnType<typeof setTimeout>;
   desktopSelectedIconId?: string;
   recentIntents: LaunchIntent[];
 };
@@ -451,6 +452,7 @@ export type KernelEvent =
   | { type: 'shell.closeSearch' }
   | { type: 'shell.setSearchQuery'; query: string }
   | { type: 'shell.selectDesktopIcon'; iconId: string }
+  | { type: 'shell.semanticSuggestionsResolving'; requestId: number; query: string }
   | { type: 'shell.semanticSuggestionsReady'; requestId: number; query: string; results: SearchResult[] }
   | { type: 'shell.moveSearchSelection'; delta: number }
   | { type: 'shell.launchSelectedSearch' }

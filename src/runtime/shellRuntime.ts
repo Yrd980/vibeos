@@ -1,11 +1,16 @@
-import { resolveSearchResults, resolveSemanticSuggestions } from './intentResolver';
+import { resolveSearchResults } from './intentResolver';
 import type { LaunchIntent, SearchResult, ShellState } from './types';
 
 export function setSearchQuery(
   shell: ShellState,
   query: string,
-  scheduleSemantic: (requestId: number, query: string, results: SearchResult[]) => void,
+  scheduleSemantic: (requestId: number, query: string) => void,
 ) {
+  if (shell.semanticTimerId !== undefined) {
+    globalThis.clearTimeout?.(shell.semanticTimerId);
+    shell.semanticTimerId = undefined;
+  }
+
   shell.searchQuery = query;
   shell.semanticSuggestions = [];
   shell.semanticStatus = query.trim() ? 'debouncing' : 'idle';
@@ -19,10 +24,20 @@ export function setSearchQuery(
       callback();
       return 0;
     });
-    schedule(() => {
-      scheduleSemantic(requestId, query, resolveSemanticSuggestions(query));
+    shell.semanticTimerId = schedule(() => {
+      shell.semanticTimerId = undefined;
+      if (requestId !== shell.semanticRequestId || query !== shell.searchQuery) return;
+      scheduleSemantic(requestId, query);
     }, 180);
   }
+}
+
+export function markSemanticResolving(shell: ShellState, requestId: number, query: string) {
+  if (requestId !== shell.semanticRequestId || query !== shell.searchQuery) {
+    return;
+  }
+
+  shell.semanticStatus = 'resolving';
 }
 
 export function applySemanticSuggestions(shell: ShellState, requestId: number, query: string, results: SearchResult[]) {

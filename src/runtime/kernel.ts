@@ -15,7 +15,7 @@ import {
   handleGeneratedUiEvent as handleGeneratedRuntimeUiEvent,
   tickGeneratedRuntime,
 } from './generatedRuntimeHost';
-import { createLaunchIntent, resolveSearchResults } from './intentResolver';
+import { createLaunchIntent, resolveSearchResults, resolveSemanticSuggestions } from './intentResolver';
 import {
   changeLocalNotepad,
   createLocalRuntimeState,
@@ -25,6 +25,7 @@ import { resolveRuntimeBinding } from './runtimeRegistry';
 import { closeSessionWindow, createSession, markSessionActive, markSessionRunning } from './sessionManager';
 import {
   applySemanticSuggestions as applyShellSemanticSuggestions,
+  markSemanticResolving as markShellSemanticResolving,
   moveSearchSelection as moveShellSearchSelection,
   rememberIntent as rememberShellIntent,
   selectDesktopIcon as selectShellDesktopIcon,
@@ -117,6 +118,8 @@ export class RuntimeKernel {
       closeSearch: () => this.closeSearch(),
       setSearchQuery: (query) => this.setSearchQuery(query),
       selectDesktopIcon: (iconId) => selectShellDesktopIcon(this.state.shell, iconId),
+      markSemanticResolving: (semanticEvent) =>
+        this.markSemanticResolving(semanticEvent.requestId, semanticEvent.query),
       applySemanticSuggestions: (semanticEvent) =>
         this.applySemanticSuggestions(semanticEvent.requestId, semanticEvent.query, semanticEvent.results),
       moveSearchSelection: (delta) => this.moveSearchSelection(delta),
@@ -197,14 +200,30 @@ export class RuntimeKernel {
   }
 
   private setSearchQuery(query: string) {
-    setShellSearchQuery(this.state.shell, query, (requestId, scheduledQuery, results) => {
+    setShellSearchQuery(this.state.shell, query, (requestId, scheduledQuery) => {
       this.dispatch({
-        type: 'shell.semanticSuggestionsReady',
+        type: 'shell.semanticSuggestionsResolving',
         requestId,
         query: scheduledQuery,
-        results,
       });
+      const schedule = globalThis.setTimeout ?? ((callback: () => void) => {
+        callback();
+        return 0;
+      });
+      this.state.shell.semanticTimerId = schedule(() => {
+        this.state.shell.semanticTimerId = undefined;
+        this.dispatch({
+          type: 'shell.semanticSuggestionsReady',
+          requestId,
+          query: scheduledQuery,
+          results: resolveSemanticSuggestions(scheduledQuery),
+        });
+      }, 80);
     });
+  }
+
+  private markSemanticResolving(requestId: number, query: string) {
+    markShellSemanticResolving(this.state.shell, requestId, query);
   }
 
   private applySemanticSuggestions(requestId: number, query: string, results: SearchResult[]) {
