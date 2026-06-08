@@ -65,7 +65,7 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
       };
     }
   } else if (intent.generationMode === 'cached') {
-    providerSession = selectGeneratedProvider().start(intent, meta);
+    providerSession = selectGeneratedProvider().start(intent, meta, document);
     stream = providerSession.poll();
     provider = providerStateFromSession(providerSession);
     while (nextPatchIndex < Math.min(2, stream.length)) {
@@ -73,7 +73,7 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
       nextPatchIndex += 1;
     }
   } else {
-    providerSession = selectGeneratedProvider().start(intent, meta);
+    providerSession = selectGeneratedProvider().start(intent, meta, document);
     stream = providerSession.poll();
     provider = providerStateFromSession(providerSession);
   }

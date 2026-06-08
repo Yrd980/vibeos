@@ -1,10 +1,18 @@
 import { createBrowserPatchStream, createGeneratedPatchStream } from './generatedRuntime';
-import type { GenerationSessionMeta, LaunchIntent, PatchEnvelope, PatchOperation, ProviderSessionHandle, UiEvent } from './types';
+import type {
+  GeneratedDocument,
+  GenerationSessionMeta,
+  LaunchIntent,
+  PatchEnvelope,
+  PatchOperation,
+  ProviderSessionHandle,
+  UiEvent,
+} from './types';
 
 export type RuntimeProvider = {
   id: string;
   source: 'mock' | 'deepseek' | 'fallback';
-  start(intent: LaunchIntent, meta: GenerationSessionMeta): ProviderSession;
+  start(intent: LaunchIntent, meta: GenerationSessionMeta, baseDocument?: GeneratedDocument): ProviderSession;
 };
 
 export type ProviderSession = ProviderSessionHandle;
@@ -235,28 +243,44 @@ export function createAsyncProviderSession(options: {
   providerId: string;
   source: RuntimeProvider['source'];
   streamId: string;
-  request: () => Promise<PatchEnvelope[]>;
-  failureEnvelope: (message: string) => PatchEnvelope;
+  baseRevision?: number;
+  request: (enqueue: (envelopes: PatchEnvelope[]) => void, signal: AbortSignal) => Promise<PatchEnvelope[] | void>;
+  failureEnvelope: (message: string, baseRevision: number) => PatchEnvelope | PatchEnvelope[];
 }): ProviderSession {
   let cancelled = false;
   let started = false;
+  let settled = false;
   let status: ProviderSession['status'] = 'queued';
   const envelopes: PatchEnvelope[] = [];
+  const abortController = new AbortController();
+  let latestRevision = options.baseRevision ?? 0;
 
   const start = () => {
     if (started || cancelled) return;
     started = true;
     status = 'requesting';
+    const enqueue = (nextEnvelopes: PatchEnvelope[]) => {
+      if (cancelled || !nextEnvelopes.length) return;
+      envelopes.push(...nextEnvelopes);
+      latestRevision = nextEnvelopes.at(-1)?.resultRevision ?? latestRevision;
+      if (status !== 'failed') status = 'streaming';
+    };
     void options
-      .request()
+      .request(enqueue, abortController.signal)
       .then((nextEnvelopes) => {
         if (cancelled) return;
-        envelopes.push(...nextEnvelopes);
+        settled = true;
+        if (nextEnvelopes?.length) enqueue(nextEnvelopes);
         status = envelopes.length ? 'streaming' : 'complete';
       })
       .catch((error) => {
         if (cancelled) return;
-        envelopes.push(options.failureEnvelope(error instanceof Error ? error.message : 'provider request failed'));
+        settled = true;
+        envelopes.push(
+          ...asEnvelopeList(
+            options.failureEnvelope(error instanceof Error ? error.message : 'provider request failed', latestRevision),
+          ),
+        );
         status = 'failed';
       });
   };
@@ -273,7 +297,7 @@ export function createAsyncProviderSession(options: {
       start();
       const envelope = envelopes.shift();
       if (!envelope) return [];
-      if (!envelopes.length && status === 'streaming') status = 'complete';
+      if (!envelopes.length && status === 'streaming') status = settled ? 'complete' : 'requesting';
       return [envelope];
     },
     pollAsync() {
@@ -281,8 +305,13 @@ export function createAsyncProviderSession(options: {
     },
     cancel() {
       cancelled = true;
+      abortController.abort();
       status = 'cancelled';
       envelopes.length = 0;
     },
   };
+}
+
+function asEnvelopeList(envelope: PatchEnvelope | PatchEnvelope[]) {
+  return Array.isArray(envelope) ? envelope : [envelope];
 }

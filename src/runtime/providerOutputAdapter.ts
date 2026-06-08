@@ -43,11 +43,11 @@ export function adaptProviderJsonOutput(options: {
   }
 
   if ('envelopes' in parsed && Array.isArray(parsed.envelopes)) {
-    return adaptEnvelopeList(parsed.envelopes, options.sessionId, options.baseRevision, options.baseDocument);
+    return adaptEnvelopeList(parsed.envelopes, options.sessionId, options.streamId, options.baseRevision, options.baseDocument);
   }
 
   if ('envelope' in parsed) {
-    return adaptEnvelopeList([parsed.envelope], options.sessionId, options.baseRevision, options.baseDocument);
+    return adaptEnvelopeList([parsed.envelope], options.sessionId, options.streamId, options.baseRevision, options.baseDocument);
   }
 
   if ('document' in parsed && isGeneratedDocumentLike(parsed.document)) {
@@ -66,6 +66,7 @@ export function adaptProviderJsonOutput(options: {
 function adaptEnvelopeList(
   values: unknown[],
   sessionId: string,
+  streamId: string,
   baseRevision: number,
   baseDocument?: GeneratedDocument,
 ): ProviderOutputAdaptResult {
@@ -78,6 +79,10 @@ function adaptEnvelopeList(
     return { kind: 'rejected', reason: 'Provider envelope session mismatch.' };
   }
 
+  if (envelopes.some((envelope) => envelope.streamId !== streamId)) {
+    return { kind: 'rejected', reason: 'Provider envelope stream mismatch.' };
+  }
+
   return validateEnvelopeReplay(envelopes, baseRevision, baseDocument);
 }
 
@@ -88,13 +93,18 @@ function validateEnvelopeReplay(
 ): ProviderOutputAdaptResult {
   let document = baseDocument ?? createEmptyDocument('provider-output-validation', 'Provider Output');
   document = { ...document, revision: baseRevision };
+  let lastSeq = 0;
 
   for (const envelope of envelopes) {
+    if (envelope.seq <= lastSeq) {
+      return { kind: 'rejected', reason: `Provider envelope ${envelope.seq} was not monotonic.` };
+    }
     const next = applyPatchEnvelope(document, envelope);
     if (next === document) {
       return { kind: 'rejected', reason: `Provider envelope ${envelope.seq} failed patch validation.` };
     }
     document = next;
+    lastSeq = envelope.seq;
   }
 
   return { kind: 'patch-stream', envelopes };
