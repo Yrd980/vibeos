@@ -1166,11 +1166,15 @@ button {
   margin: 0 0 14px;
 }
 
-.google-result a {
+.google-result .facsimile-link {
   display: block;
+  padding: 0;
+  border: 0;
   color: #0000cc;
+  background: transparent;
   font-size: 16px;
   text-decoration: underline;
+  text-align: left;
 }
 
 .google-result cite {
@@ -1291,9 +1295,13 @@ button {
   font-size: 28px;
 }
 
-.example-domain-box a {
+.example-domain-box .facsimile-link {
+  padding: 0;
+  border: 0;
   color: #0000ee;
+  background: transparent;
   text-decoration: underline;
+  text-align: left;
 }
 
 .block-facsimile-page {

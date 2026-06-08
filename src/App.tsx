@@ -567,6 +567,7 @@ function GeneratedDocumentView({
             document={document}
             sessionId={sessionId}
             dispatch={dispatch}
+            browser={browser}
           />
         ))
       ) : (
@@ -584,11 +585,13 @@ function BlockView({
   document,
   sessionId,
   dispatch,
+  browser = false,
 }: {
   block?: GeneratedBlock;
   document: GeneratedDocument;
   sessionId: string;
   dispatch: (event: KernelEvent) => void;
+  browser?: boolean;
 }) {
   if (!block) return null;
   const className = `block block-${block.type} ${block.styleTokens.join(' ')}`;
@@ -632,7 +635,7 @@ function BlockView({
     return (
       <div className={className}>
         {block.children.map((childId) => (
-          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} />
+          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} browser={browser} />
         ))}
       </div>
     );
@@ -839,7 +842,7 @@ function BlockView({
           </div>
         )}
         {block.children.map((childId) => (
-          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} />
+          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} browser={browser} />
         ))}
       </div>
     );
@@ -867,7 +870,7 @@ function BlockView({
           </div>
         )}
         {block.children.map((childId) => (
-          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} />
+          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} browser={browser} />
         ))}
       </div>
     );
@@ -1101,7 +1104,12 @@ function BlockView({
           if (!isSearchItem(result)) return null;
           return (
             <div className="google-result" key={index}>
-              <a>{result.title}</a>
+              <button
+                className="facsimile-link"
+                onClick={() => dispatchSimulatedNavigation(sessionId, dispatch, result.url)}
+              >
+                {result.title}
+              </button>
               <cite>{result.url}</cite>
               <p>{result.snippet}</p>
             </div>
@@ -1167,7 +1175,12 @@ function BlockView({
         <div className="example-domain-box">
           <h1>{String(block.props.title ?? 'Example Domain')}</h1>
           <p>{String(block.props.paragraph ?? '')}</p>
-          <a>{String(block.props.linkText ?? 'More information...')}</a>
+          <button
+            className="facsimile-link"
+            onClick={() => dispatchSimulatedNavigation(sessionId, dispatch, 'https://www.iana.org/domains/example')}
+          >
+            {String(block.props.linkText ?? 'More information...')}
+          </button>
         </div>
       </div>
     );
@@ -1179,7 +1192,13 @@ function BlockView({
         <h1>{String(block.props.title ?? block.props.displayUrl ?? '')}</h1>
         <p>{String(block.props.body ?? 'Simulated offline page.')}</p>
         {Array.isArray(block.props.nav) && (
-          <nav>{getArray(block.props.nav).map((item) => <button key={item}>{item}</button>)}</nav>
+          <nav>
+            {getArray(block.props.nav).map((item) => (
+              <button key={item} onClick={() => dispatchSimulatedNavigation(sessionId, dispatch, `${String(block.props.displayUrl ?? '')}${item}`)}>
+                {item}
+              </button>
+            ))}
+          </nav>
         )}
       </div>
     );
@@ -1190,7 +1209,13 @@ function BlockView({
       <div className={className}>
         <span>Address</span>
         <input value={String(block.props.displayUrl ?? '')} readOnly />
-        <button onClick={() => dispatchBlockIntent(block, document, sessionId, dispatch, 'navigate-simulated', block.props.displayUrl)}>
+        <button onClick={() => {
+          if (browser) {
+            dispatchSimulatedNavigation(sessionId, dispatch, block.props.displayUrl);
+            return;
+          }
+          dispatchBlockIntent(block, document, sessionId, dispatch, 'navigate-simulated', block.props.displayUrl);
+        }}>
           Go
         </button>
       </div>
@@ -1211,11 +1236,17 @@ function BlockView({
           {block.props.displayUrl != null && <small>{String(block.props.displayUrl)}</small>}
         </header>
         {Array.isArray(block.props.nav) && (
-          <nav>{getArray(block.props.nav).map((item) => <button key={item}>{item}</button>)}</nav>
+          <nav>
+            {getArray(block.props.nav).map((item) => (
+              <button key={item} onClick={() => dispatchSimulatedNavigation(sessionId, dispatch, `${String(block.props.displayUrl ?? '')}${item}`)}>
+                {item}
+              </button>
+            ))}
+          </nav>
         )}
         <p>{String(block.props.body ?? block.props.text ?? '')}</p>
         {block.children.map((childId) => (
-          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} />
+          <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} browser={browser} />
         ))}
       </div>
     );
@@ -1228,7 +1259,7 @@ function BlockView({
   return (
     <div className={className}>
       {block.children.map((childId) => (
-        <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} />
+        <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} browser={browser} />
       ))}
     </div>
   );
@@ -1261,6 +1292,16 @@ function dispatchBlockIntent(
       value,
     },
   });
+}
+
+function dispatchSimulatedNavigation(
+  sessionId: string,
+  dispatch: (event: KernelEvent) => void,
+  address: unknown,
+) {
+  const nextAddress = String(address ?? '').trim();
+  if (!nextAddress) return;
+  dispatch({ type: 'browser.navigate', sessionId, address: nextAddress });
 }
 
 function boundedPercent(value: unknown) {
