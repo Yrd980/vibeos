@@ -109,6 +109,9 @@ export function tickGeneratedRuntime(state: GeneratedSessionState | undefined, s
   const result = advanceGeneratedStage(state);
   state.provider.status = state.providerSession?.status ?? state.provider.status;
   state.modelState = modelStateFromProvider(state.provider.status, state.stream.length, state.nextPatchIndex);
+  if (state.nextPatchIndex >= state.stream.length && !state.providerSession) {
+    state.modelState = 'complete';
+  }
   if (result.advanced && session && state.document.stage === 'ready') {
     rememberCheckpoint(
       session.intent,
@@ -473,17 +476,30 @@ function checksum(value: string) {
 
 function fillStreamFromProvider(state: GeneratedSessionState) {
   if (!state.providerSession) return;
-  if (state.nextPatchIndex < state.stream.length) return;
+  const targetBuffer = providerBufferTarget(state);
 
-  state.providerSession.pollAsync?.();
-  const rawEnvelopes = state.providerSession.poll();
-  const envelopes =
-    state.providerSession.source === 'mock' || state.providerSession.source === 'fallback'
-      ? rebaseProviderEnvelopes(rawEnvelopes, state.document.revision)
-      : rawEnvelopes.filter((envelope) => envelope.baseRevision === state.document.revision);
-  if (envelopes.length) state.stream.push(...envelopes);
+  while (state.stream.length - state.nextPatchIndex < targetBuffer) {
+    state.providerSession.pollAsync?.();
+    const rawEnvelopes = state.providerSession.poll();
+    if (!rawEnvelopes.length) break;
+
+    const nextBaseRevision = state.document.revision + state.stream.length - state.nextPatchIndex;
+    const envelopes =
+      state.providerSession.source === 'mock' || state.providerSession.source === 'fallback'
+        ? rebaseProviderEnvelopes(rawEnvelopes, nextBaseRevision)
+        : rawEnvelopes.filter((envelope) => envelope.baseRevision === state.document.revision);
+    if (!envelopes.length) break;
+    state.stream.push(...envelopes);
+  }
+
   state.provider.status = state.providerSession.status;
   state.modelState = modelStateFromProvider(state.provider.status, state.stream.length, state.nextPatchIndex);
+}
+
+function providerBufferTarget(state: GeneratedSessionState) {
+  if (state.providerSession?.source !== 'mock' && state.providerSession?.source !== 'fallback') return 1;
+  if (state.stagePlan.mode === 'fallback') return 2;
+  return 1;
 }
 
 function rebaseProviderEnvelopes(envelopes: ReturnType<ProviderSession['poll']>, baseRevision: number) {

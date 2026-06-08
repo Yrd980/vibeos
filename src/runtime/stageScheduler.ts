@@ -8,25 +8,35 @@ export type StageStepResult = {
 };
 
 export function advanceGeneratedStage(state: GeneratedSessionState): StageStepResult {
-  if (state.nextPatchIndex >= state.stream.length) {
-    return { advanced: false };
-  }
+  const maxSteps = generatedStepBudget(state);
+  let advanced = false;
 
-  const nextDocument = applyPatchEnvelope(state.document, state.stream[state.nextPatchIndex]);
-  const accepted = nextDocument !== state.document;
-  state.document = nextDocument;
-  if (accepted) {
+  for (let step = 0; step < maxSteps && state.nextPatchIndex < state.stream.length; step += 1) {
+    const nextDocument = applyPatchEnvelope(state.document, state.stream[state.nextPatchIndex]);
+    const accepted = nextDocument !== state.document;
+    state.nextPatchIndex += 1;
+
+    if (!accepted) break;
+
+    state.document = nextDocument;
     state.visibleDocument = nextDocument;
     state.stagePlan.lastVisibleRevision = nextDocument.revision;
+    advanced = true;
   }
-  state.nextPatchIndex += 1;
+
   state.modelState = state.nextPatchIndex >= state.stream.length ? 'complete' : 'streaming';
 
   return {
-    advanced: accepted,
+    advanced,
     title: state.document.appIdentity.title,
     iconToken: state.document.appIdentity.iconToken,
   };
+}
+
+function generatedStepBudget(state: GeneratedSessionState) {
+  if (state.stagePlan.mode === 'cache-replay') return Math.max(1, state.stream.length - state.nextPatchIndex);
+  if (state.stagePlan.mode === 'fallback') return 2;
+  return 1;
 }
 
 export function advanceBrowserStage(state: BrowserState): StageStepResult {
