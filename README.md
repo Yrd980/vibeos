@@ -18,6 +18,14 @@ The point is stage-demo plausibility: a local desktop, Internet Explorer-style b
 
 ![VibeOS generated calculator](docs/screenshots/vibeos-generated-calculator.png)
 
+### DeepSeek Generated Control Panel
+
+![VibeOS DeepSeek generated Control Panel](docs/screenshots/vibeos-deepseek-control-panel.png)
+
+### DeepSeek Browser Facsimile
+
+![VibeOS DeepSeek generated browser page](docs/screenshots/vibeos-deepseek-browser-wikipedia.png)
+
 ## What Works
 
 - Windows 98-style desktop shell, taskbar, Start/App Search, desktop icons, and movable windows.
@@ -26,6 +34,7 @@ The point is stage-demo plausibility: a local desktop, Internet Explorer-style b
 - Generated apps built from a validated block tree and patch stream.
 - Typed event intents for generated interactions, such as To Do row selection and generated calculator key presses.
 - Deterministic mock providers and cache hydration so the prototype can run without model latency.
+- Optional DeepSeek-backed generation for generated apps and Internet Explorer page facsimiles.
 
 ## Run Locally
 
@@ -46,6 +55,8 @@ Open:
 ```text
 http://127.0.0.1:5173/
 ```
+
+To run the DeepSeek provider during local development, set `VITE_VIBEOS_PROVIDER=deepseek` and provide `DEEPSEEK_API_KEY` or `VITE_DEEPSEEK_API_KEY` in the environment before starting Vite.
 
 ## Useful Scripts
 

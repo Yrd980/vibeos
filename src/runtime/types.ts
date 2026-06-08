@@ -140,6 +140,7 @@ export type BrowserState = {
   favorites: BrowserFavorite[];
   favoritesOpen: boolean;
   stream: PatchEnvelope[];
+  providerSession?: ProviderSessionHandle;
   nextPatchIndex: number;
 };
 

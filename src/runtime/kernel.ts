@@ -320,7 +320,7 @@ export class RuntimeKernel {
 
   private tickBrowser(sessionId: string) {
     const browser = this.state.browserApps[sessionId];
-    if (!browser || browser.nextPatchIndex >= browser.stream.length) return;
+    if (!browser || (browser.nextPatchIndex >= browser.stream.length && !browser.providerSession)) return;
 
     const result = tickBrowserRuntime(browser);
     if (result.title && result.iconToken) {

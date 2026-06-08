@@ -1,7 +1,8 @@
 import { applyPatchEnvelope, classifyBrowserRoute, createEmptyDocument } from './generatedRuntime';
+import { deepSeekProvider, isDeepSeekEnabled } from './deepSeekProvider';
 import { mockBrowserProvider } from './providers';
 import { advanceBrowserStage, type StageStepResult } from './stageScheduler';
-import type { BrowserFavorite, BrowserPage, BrowserState } from './types';
+import type { BrowserFavorite, BrowserPage, BrowserState, BrowserPageKind, GenerationSessionMeta, LaunchIntent, ProviderSessionHandle } from './types';
 
 export function createBrowserRuntimeState(
   sessionId: string,
@@ -10,7 +11,8 @@ export function createBrowserRuntimeState(
   nextDocumentId: () => string,
 ): BrowserState {
   const page = createBrowserPage(sessionId, address, nextDocumentId());
-  const stream = mockBrowserProvider.start(address, sessionId);
+  const providerRun = createBrowserProviderRun(sessionId, address, page);
+  const stream = providerRun.stream;
   let nextPatchIndex = 0;
 
   if (cached) {
@@ -31,11 +33,13 @@ export function createBrowserRuntimeState(
     favorites: defaultBrowserFavorites(),
     favoritesOpen: false,
     stream,
+    providerSession: providerRun.providerSession,
     nextPatchIndex,
   };
 }
 
 export function tickBrowserRuntime(browser: BrowserState): StageStepResult {
+  fillBrowserStreamFromProvider(browser);
   return advanceBrowserStage(browser);
 }
 
@@ -59,7 +63,9 @@ export function navigateBrowserRuntime(
   browser.page = page;
   browser.history = [...browser.history.slice(0, browser.historyIndex + 1), page];
   browser.historyIndex = browser.history.length - 1;
-  browser.stream = mockBrowserProvider.start(nextAddress, sessionId);
+  const providerRun = createBrowserProviderRun(sessionId, nextAddress, page);
+  browser.stream = providerRun.stream;
+  browser.providerSession = providerRun.providerSession;
   browser.nextPatchIndex = 0;
 
   return { advanced: true, title: `Internet Explorer - ${page.title}`, iconToken: 'browser' };
@@ -76,6 +82,8 @@ export function goBrowserHistory(browser: BrowserState | undefined, delta: numbe
   browser.address = browser.page.address;
   browser.addressDraft = browser.page.address;
   browser.favoritesOpen = false;
+  browser.providerSession?.cancel('browser history navigation');
+  browser.providerSession = undefined;
   browser.stream = [];
   browser.nextPatchIndex = 0;
 
@@ -93,7 +101,10 @@ export function refreshBrowserRuntime(
   browser.page = createBrowserPage(sessionId, address, nextDocumentId());
   browser.history[browser.historyIndex] = browser.page;
   browser.favoritesOpen = false;
-  browser.stream = mockBrowserProvider.start(address, sessionId);
+  browser.providerSession?.cancel('browser refresh');
+  const providerRun = createBrowserProviderRun(sessionId, address, browser.page);
+  browser.stream = providerRun.stream;
+  browser.providerSession = providerRun.providerSession;
   browser.nextPatchIndex = 0;
 
   return { advanced: true, title: `Internet Explorer - ${browser.page.title}`, iconToken: 'browser' };
@@ -103,6 +114,8 @@ export function stopBrowserRuntime(browser: BrowserState | undefined, sessionId:
   if (!browser) return;
 
   browser.stream = [];
+  browser.providerSession?.cancel('browser stop');
+  browser.providerSession = undefined;
   browser.nextPatchIndex = 0;
   browser.page.statusText = 'Stopped - Simulated offline page';
   browser.page.document = applyPatchEnvelope(browser.page.document, {
@@ -121,6 +134,81 @@ export function stopBrowserRuntime(browser: BrowserState | undefined, sessionId:
       ],
     },
   });
+}
+
+function createBrowserProviderRun(
+  sessionId: string,
+  address: string,
+  page: BrowserPage,
+): { stream: BrowserState['stream']; providerSession?: ProviderSessionHandle } {
+  if (!isDeepSeekEnabled()) {
+    return { stream: mockBrowserProvider.start(address, sessionId) };
+  }
+
+  const route = classifyBrowserRoute(address);
+  const providerSession = deepSeekProvider.start(
+    createBrowserLaunchIntent(address, route.title, route.kind),
+    createBrowserGenerationMeta(sessionId, address, page.document.revision),
+    page.document,
+  );
+
+  return {
+    stream: providerSession.poll(),
+    providerSession,
+  };
+}
+
+function fillBrowserStreamFromProvider(browser: BrowserState) {
+  if (!browser.providerSession) return;
+
+  while (browser.stream.length - browser.nextPatchIndex < 1) {
+    browser.providerSession.pollAsync?.();
+    const envelopes = browser.providerSession.poll();
+    if (!envelopes.length) break;
+    browser.stream.push(...envelopes);
+  }
+}
+
+function createBrowserLaunchIntent(address: string, title: string, kind: BrowserPageKind): LaunchIntent {
+  return {
+    id: `browser-deepseek-${sanitizeBrowserSeed(address)}`,
+    source: 'browser',
+    kind: 'browser-page',
+    rawQuery: address,
+    title,
+    prompt: `Create an offline-simulated Internet Explorer page for "${address}". Route kind: ${kind}. It must look like a generated web page inside the browser viewport, not a desktop app.`,
+    seed: `browser-${sanitizeBrowserSeed(address)}`,
+    iconHint: 'browser',
+    browserAddress: address,
+    generationMode: 'staged',
+  };
+}
+
+function createBrowserGenerationMeta(sessionId: string, address: string, baseRevision: number): GenerationSessionMeta {
+  return {
+    sessionId,
+    prompt: address,
+    kind: 'browser-facsimile',
+    cacheKey: `browser-${sanitizeBrowserSeed(address)}`,
+    baseRevision,
+    viewportHints: {
+      width: 840,
+      height: 560,
+      colorDepth: 8,
+    },
+    locale: globalThis.navigator?.language || 'en-US',
+    safetyMode: 'offline-simulated',
+  };
+}
+
+function sanitizeBrowserSeed(value: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'home'
+  );
 }
 
 export function toggleBrowserFavorites(browser: BrowserState | undefined) {
