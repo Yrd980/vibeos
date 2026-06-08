@@ -322,6 +322,24 @@ export function classifyBrowserRoute(address: string) {
     };
   }
 
+  if (lower.includes('encyclopedia')) {
+    const topic = titleCase(
+      normalized
+        .replace(/encyclopedia/gi, '')
+        .replace(/^about\s+/i, '')
+        .trim() || 'Alan Turing',
+    );
+    const displayUrl = `encarta://articles/${topic.replace(/\s+/g, '-')}`;
+    return {
+      title: topic,
+      kind: 'encarta' as const,
+      statusText: 'Done - Simulated offline encyclopedia article',
+      identity: identity(topic, 'Encarta-like offline article', 'encarta', 'Done'),
+      facsimileRoute: facsimile('encyclopedia-article', displayUrl, ['side index', 'media pane', 'infobox', 'CD-ROM article layout']),
+      ops: encyclopediaOps(topic, displayUrl),
+    };
+  }
+
   if (lower === 'about:home' || lower === 'google.com' || !lower.includes('.')) {
     const query = lower === 'about:home' || lower === 'google.com' ? '' : normalized;
     return {
@@ -931,6 +949,40 @@ function wikiOps(topic: string, displayUrl: string): PatchOperation[] {
       }, [], ['wiki-page']),
     },
     { op: 'insertBlock', parentId: 'root', childId: 'wiki-page' },
+  ];
+}
+
+function encyclopediaOps(topic: string, displayUrl: string): PatchOperation[] {
+  return [
+    {
+      op: 'createBlock',
+      block: block('encyclopedia-shell', 'split-pane', { orientation: 'horizontal' }, [], ['split-pane', 'encarta-page']),
+    },
+    {
+      op: 'createBlock',
+      block: block('encyclopedia-index', 'tree', {
+        title: 'Index',
+        items: ['Computer Science', 'People', topic, 'Media Gallery', 'Related Articles'],
+      }, [], ['encarta-sidebar']),
+    },
+    {
+      op: 'createBlock',
+      block: block('encyclopedia-article', 'encyclopedia-article', {
+        title: topic,
+        lead: `${topic} is shown as an Encarta-like offline encyclopedia article with a CD-ROM side index, media caption, and compact facts panel.`,
+        sections: ['Overview', 'Context', 'Related Topics', 'Further Reading'],
+        infobox: [
+          ['Display URL', displayUrl],
+          ['Article type', 'Simulated CD-ROM entry'],
+          ['Media', '1 captioned object'],
+          ['Status', 'Offline facsimile'],
+        ],
+        caption: 'Simulated media pane: compact portrait and timeline thumbnail.',
+      }, [], ['encarta-page', 'win98-inset']),
+    },
+    { op: 'insertBlock', parentId: 'encyclopedia-shell', childId: 'encyclopedia-index' },
+    { op: 'insertBlock', parentId: 'encyclopedia-shell', childId: 'encyclopedia-article' },
+    { op: 'insertBlock', parentId: 'root', childId: 'encyclopedia-shell' },
   ];
 }
 
