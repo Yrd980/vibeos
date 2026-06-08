@@ -340,13 +340,14 @@ export function classifyBrowserRoute(address: string) {
   }
 
   const domain = normalized.replace(/^https?:\/\//, '').split('/')[0];
+  const oldWeb = classifyOldWebRoute(normalized, domain);
   return {
-    title: titleCase(domain.replace(/\..*/, '')),
+    title: oldWeb.title,
     kind: 'unknown' as const,
     statusText: 'Done - Simulated offline page',
-    identity: identity(titleCase(domain), 'Generated old-web facsimile', 'browser', 'Done'),
-    facsimileRoute: facsimile('corporate-site', `http://${domain}/`, ['old web header', 'left navigation', 'status footer']),
-    ops: unknownSiteOps(domain),
+    identity: identity(oldWeb.title, oldWeb.subtitle, 'browser', 'Done'),
+    facsimileRoute: facsimile(oldWeb.pageKind, `http://${domain}/`, oldWeb.visualCues),
+    ops: unknownSiteOps(domain, oldWeb),
   };
 }
 
@@ -942,22 +943,89 @@ function exampleOps(displayUrl: string): PatchOperation[] {
   ];
 }
 
-function unknownSiteOps(domain: string): PatchOperation[] {
+type OldWebRoute = {
+  pageKind: 'download-portal' | 'fan-site' | 'corporate-site' | 'forum-thread' | 'classic-software-page';
+  title: string;
+  subtitle: string;
+  visualCues: string[];
+  nav: string[];
+  body: string;
+};
+
+function unknownSiteOps(domain: string, route: OldWebRoute): PatchOperation[] {
   return [
     {
       op: 'createBlock',
-      block: block('unknown-site', 'facsimile-page', {
-        pageKind: 'corporate-site',
+      block: block('unknown-site', route.pageKind, {
+        pageKind: route.pageKind,
         displayUrl: `http://${domain}/`,
         offlineSimulated: true,
-        visualCues: ['old web header', 'left navigation', 'badges', 'status footer'],
-        title: titleCase(domain),
-        nav: ['Home', 'Products', 'Download', 'Support', 'Guestbook'],
-        body: `Welcome to ${domain}, reconstructed locally as a late-90s web page with no real network access.`,
+        visualCues: route.visualCues,
+        title: route.title,
+        nav: route.nav,
+        body: route.body,
       }, [], ['win98-inset']),
     },
     { op: 'insertBlock', parentId: 'root', childId: 'unknown-site' },
   ];
+}
+
+function classifyOldWebRoute(address: string, domain: string): OldWebRoute {
+  const lower = `${address} ${domain}`.toLowerCase();
+  const name = titleCase(domain.replace(/\..*/, ''));
+
+  if (/\b(download|ftp|drivers?|files?|shareware|tucows|softpedia|mirror)\b/.test(lower)) {
+    return {
+      pageKind: 'download-portal',
+      title: `${name} Download Archive`,
+      subtitle: 'Generated download portal facsimile',
+      visualCues: ['version', 'mirrors', 'system requirements', 'old badges'],
+      nav: ['Top Downloads', 'Newest', 'Drivers', 'Mirrors', 'Submit Software'],
+      body: `The ${domain} archive lists fake mirrors, version notes, and system requirements. All download actions stay simulated.`,
+    };
+  }
+
+  if (/\b(forum|bbs|threads?|board|community)\b/.test(lower)) {
+    return {
+      pageKind: 'forum-thread',
+      title: `${name} Forum`,
+      subtitle: 'Generated forum thread facsimile',
+      visualCues: ['thread list', 'user badges', 'quoted replies', 'last post time'],
+      nav: ['Index', 'Search', 'Members', 'FAQ', 'Post Reply'],
+      body: `${domain} is rendered as a sleepy forum thread with local posts, signatures, and no external network access.`,
+    };
+  }
+
+  if (/\b(fan|fansite|shrine|tribute|webring|geocities|angelfire)\b/.test(lower)) {
+    return {
+      pageKind: 'fan-site',
+      title: `${name} Fan Site`,
+      subtitle: 'Generated fan-site facsimile',
+      visualCues: ['webring nav', 'guestbook', 'badges', 'personal updates'],
+      nav: ['Home', 'Gallery', 'Guestbook', 'Links', 'Webring'],
+      body: `Welcome to ${domain}, a simulated fan page with badges, link lists, update notes, and theatrical enthusiasm.`,
+    };
+  }
+
+  if (/\b(winamp|netscape|icq|quake|doom|drivers?|utility|software|classic)\b/.test(lower)) {
+    return {
+      pageKind: 'classic-software-page',
+      title: `${name} Classic Software`,
+      subtitle: 'Generated classic software page',
+      visualCues: ['version box', 'screenshots', 'system requirements', 'download callout'],
+      nav: ['Overview', 'Screenshots', 'Versions', 'Skins', 'Support'],
+      body: `${domain} is reconstructed as a classic software page with version notes, screenshots, and fake compatibility details.`,
+    };
+  }
+
+  return {
+    pageKind: 'corporate-site',
+    title: name,
+    subtitle: 'Generated old-web facsimile',
+    visualCues: ['old web header', 'left navigation', 'badges', 'status footer'],
+    nav: ['Home', 'Products', 'Download', 'Support', 'Guestbook'],
+    body: `Welcome to ${domain}, reconstructed locally as a late-90s web page with no real network access.`,
+  };
 }
 
 function applyPatch(document: GeneratedDocument, op: PatchOperation) {
