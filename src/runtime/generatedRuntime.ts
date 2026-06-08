@@ -506,6 +506,12 @@ function createEncartaStream(sessionId: string, intent: LaunchIntent): PatchEnve
             'Notable tools',
             'Legacy in desktop computing',
           ],
+          infobox: [
+            ['Article type', 'Generated CD-ROM entry'],
+            ['Topic index', 'Operating Systems / Utilities'],
+            ['Media', '2 simulated objects'],
+            ['Offline status', 'Local facsimile'],
+          ],
           caption: 'Simulated CD-ROM media: portrait placeholder and disk diagram.',
         }, [], ['encarta-page', 'win98-inset']),
       },
@@ -1687,6 +1693,7 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
         (props.title == null || isLimitedString(props.title, 160)) &&
         (props.lead == null || isLimitedString(props.lead, maxTextLength)) &&
         (props.sections == null || isStringArray(props.sections, 32, 120)) &&
+        (props.infobox == null || Array.isArray(props.infobox)) &&
         (props.caption == null || isLimitedString(props.caption, 240))
       );
     case 'plain-example-page':

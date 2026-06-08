@@ -1218,6 +1218,14 @@ function BlockView({
             <h2 key={section}>{section}</h2>
           ))}
         </div>
+        {Array.isArray(block.props.infobox) && (
+          <aside className="wiki-infobox">
+            <strong>Article Facts</strong>
+            {block.props.infobox.map((row, index) => (
+              <div key={index}>{Array.isArray(row) ? `${row[0]}: ${row[1]}` : String(row)}</div>
+            ))}
+          </aside>
+        )}
       </article>
     );
   }

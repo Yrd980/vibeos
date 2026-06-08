@@ -33,8 +33,7 @@ export function createLaunchIntent(rawQuery: string, options: ResolveOptions): L
   const looksLikeWiki =
     lower.includes('wikipedia') ||
     lower.startsWith('wiki ') ||
-    lower.includes('encyclopedia') ||
-    lower.includes('encarta');
+    lower.includes('encyclopedia');
 
   if (!options.forceGenerated && exactBuiltIn) {
     const isCalculator = lower === 'calculator' || lower === 'calc';
