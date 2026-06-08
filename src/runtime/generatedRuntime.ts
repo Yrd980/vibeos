@@ -1526,7 +1526,11 @@ function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<strin
     case 'select':
       return validateControlProps(props) && (props.items == null || isStringArray(props.items, maxItems, 120));
     case 'form':
-      return validatePanelProps(props) && (props.fields == null || isRecordArray(props.fields, 32));
+      return (
+        validatePanelProps(props) &&
+        (props.fields == null || isRecordArray(props.fields, 32)) &&
+        validateSensitiveFormControls(props)
+      );
     case 'text':
     case 'heading':
     case 'terminal-transcript':
@@ -1639,8 +1643,27 @@ function validateControlProps(props: Record<string, unknown>) {
     (props.label == null || isLimitedString(props.label, 160)) &&
     (props.text == null || isLimitedString(props.text, maxTextLength)) &&
     (props.value == null || validateMetadataValue(props.value)) &&
-    (props.disabled == null || typeof props.disabled === 'boolean')
+    (props.disabled == null || typeof props.disabled === 'boolean') &&
+    (!isSensitiveControlProps(props) || props.disabled === true)
   );
+}
+
+function validateSensitiveFormControls(props: Record<string, unknown>) {
+  if (isSensitiveControlProps(props) && props.disabled !== true) return false;
+  if (!Array.isArray(props.fields)) return true;
+  return props.fields.every((field) => {
+    if (typeof field !== 'object' || field === null || Array.isArray(field)) return false;
+    const fieldRecord = field as Record<string, unknown>;
+    return !isSensitiveControlProps(fieldRecord) || fieldRecord.disabled === true;
+  });
+}
+
+function isSensitiveControlProps(props: Record<string, unknown>) {
+  const text = ['label', 'text', 'title', 'name', 'placeholder', 'type']
+    .map((key) => (typeof props[key] === 'string' ? props[key] : ''))
+    .join(' ')
+    .toLowerCase();
+  return /\b(password|passcode|login|sign in|payment|credit card|card number|cvv|cvc|billing)\b/.test(text);
 }
 
 function validateFacsimileProps(props: Record<string, unknown>) {
