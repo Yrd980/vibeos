@@ -49,7 +49,7 @@ export function App() {
   useEffect(() => {
     const interval = window.setInterval(() => {
       kernel.dispatch({ type: 'runtime.tick' });
-    }, 360);
+    }, 120);
     return () => window.clearInterval(interval);
   }, []);
 

@@ -367,6 +367,8 @@ export type PatchEnvelope = {
 export type StagePlan = {
   mode: 'stream' | 'cache-replay' | 'fallback';
   startedAt: number;
+  lastAdvancedAt: number;
+  targetDurationMs: number;
   lastVisibleRevision: number;
 };
 

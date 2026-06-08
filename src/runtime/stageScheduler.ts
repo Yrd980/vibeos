@@ -8,7 +8,8 @@ export type StageStepResult = {
 };
 
 export function advanceGeneratedStage(state: GeneratedSessionState): StageStepResult {
-  const maxSteps = generatedStepBudget(state);
+  const now = Date.now();
+  const maxSteps = generatedStepBudget(state, now);
   let advanced = false;
 
   for (let step = 0; step < maxSteps && state.nextPatchIndex < state.stream.length; step += 1) {
@@ -21,6 +22,7 @@ export function advanceGeneratedStage(state: GeneratedSessionState): StageStepRe
     state.document = nextDocument;
     state.visibleDocument = nextDocument;
     state.stagePlan.lastVisibleRevision = nextDocument.revision;
+    state.stagePlan.lastAdvancedAt = now;
     advanced = true;
   }
 
@@ -33,10 +35,32 @@ export function advanceGeneratedStage(state: GeneratedSessionState): StageStepRe
   };
 }
 
-function generatedStepBudget(state: GeneratedSessionState) {
-  if (state.stagePlan.mode === 'cache-replay') return Math.max(1, state.stream.length - state.nextPatchIndex);
-  if (state.stagePlan.mode === 'fallback') return 2;
-  return 1;
+function generatedStepBudget(state: GeneratedSessionState, now: number) {
+  const remaining = state.stream.length - state.nextPatchIndex;
+  if (remaining <= 0) return 0;
+
+  if (state.stagePlan.mode === 'cache-replay') {
+    return timeBudgetedSteps(state, now, 1);
+  }
+
+  if (state.stagePlan.mode === 'fallback') {
+    return timeBudgetedSteps(state, now, 2);
+  }
+
+  return timeBudgetedSteps(state, now, 1);
+}
+
+function timeBudgetedSteps(state: GeneratedSessionState, now: number, minimumPerTick: number) {
+  const elapsed = Math.max(0, now - state.stagePlan.startedAt);
+  const totalSteps = Math.max(state.stream.length, state.nextPatchIndex + 1);
+  const targetDurationMs = Math.max(80, state.stagePlan.targetDurationMs);
+  const expectedIndex = Math.min(
+    totalSteps,
+    Math.max(minimumPerTick, Math.ceil((elapsed / targetDurationMs) * totalSteps)),
+  );
+  const due = expectedIndex - state.nextPatchIndex;
+  if (due > 0) return due;
+  return now - state.stagePlan.lastAdvancedAt >= targetDurationMs / totalSteps ? 1 : 0;
 }
 
 export function advanceBrowserStage(state: BrowserState): StageStepResult {

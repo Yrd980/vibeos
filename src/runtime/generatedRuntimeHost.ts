@@ -85,16 +85,7 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
     hydrationState: hydration.kind,
     document,
     visibleDocument: document,
-    stagePlan: {
-      mode:
-        hydration.kind === 'hit' || (hydration.kind === 'stale' && intent.generationMode === 'cached')
-          ? 'cache-replay'
-          : intent.rawQuery.toLowerCase().includes('fail') || intent.rawQuery.toLowerCase().includes('provider error')
-            ? 'fallback'
-            : 'stream',
-      startedAt: Date.now(),
-      lastVisibleRevision: document.revision,
-    },
+    stagePlan: createStagePlan(document.revision, stageModeForIntent(intent, hydration.kind)),
     provider,
     providerSession,
     actionHistory: hydration.kind === 'miss' ? [] : hydration.eventLog,
@@ -103,6 +94,32 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
     eventPatchLog: hydration.kind === 'miss' ? [] : hydration.eventPatchLog,
     nextPatchIndex,
   };
+}
+
+function createStagePlan(lastVisibleRevision: number, mode: GeneratedSessionState['stagePlan']['mode']) {
+  const now = Date.now();
+  return {
+    mode,
+    startedAt: now,
+    lastAdvancedAt: now,
+    targetDurationMs: stageTargetDurationMs(mode),
+    lastVisibleRevision,
+  };
+}
+
+function stageModeForIntent(
+  intent: LaunchIntent,
+  hydrationKind: GeneratedSessionState['hydrationState'],
+): GeneratedSessionState['stagePlan']['mode'] {
+  if (hydrationKind === 'hit' || (hydrationKind === 'stale' && intent.generationMode === 'cached')) return 'cache-replay';
+  if (intent.rawQuery.toLowerCase().includes('fail') || intent.rawQuery.toLowerCase().includes('provider error')) return 'fallback';
+  return 'stream';
+}
+
+function stageTargetDurationMs(mode: GeneratedSessionState['stagePlan']['mode']) {
+  if (mode === 'cache-replay') return 240;
+  if (mode === 'fallback') return 720;
+  return 1560;
 }
 
 export function tickGeneratedRuntime(state: GeneratedSessionState | undefined, session?: AppSession): StageStepResult {
@@ -501,8 +518,8 @@ function fillStreamFromProvider(state: GeneratedSessionState) {
 
 function providerBufferTarget(state: GeneratedSessionState) {
   if (state.providerSession?.source !== 'mock' && state.providerSession?.source !== 'fallback') return 1;
-  if (state.stagePlan.mode === 'fallback') return 2;
-  return 1;
+  if (state.stagePlan.mode === 'fallback') return 4;
+  return 12;
 }
 
 function rebaseProviderEnvelopes(envelopes: ReturnType<ProviderSession['poll']>, baseRevision: number) {
