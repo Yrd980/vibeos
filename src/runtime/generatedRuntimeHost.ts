@@ -149,6 +149,46 @@ export function handleGeneratedUiEvent(
     value,
   });
 
+  const providerEnvelopes = generated.providerSession?.handleEvent?.(generated.actionHistory[generated.actionHistory.length - 1]) ?? [];
+  const acceptedProviderEnvelopes = applyEventEnvelopes(generated, providerEnvelopes);
+  const eventEnvelopes = acceptedProviderEnvelopes.length
+    ? acceptedProviderEnvelopes
+    : [applyLocalEventFallback(generated, session, block, intentId, value)];
+  generated.eventPatchLog.push(...eventEnvelopes);
+
+  if (session) {
+    rememberCheckpoint(
+      session.intent,
+      generated.document,
+      [...generated.stream.slice(0, generated.nextPatchIndex), ...generated.eventPatchLog],
+      generated.actionHistory,
+      generated.eventPatchLog,
+    );
+  }
+}
+
+function applyEventEnvelopes(generated: GeneratedSessionState, envelopes: PatchEnvelope[]) {
+  const accepted: PatchEnvelope[] = [];
+
+  for (const envelope of envelopes) {
+    const nextDocument = applyPatchEnvelope(generated.document, envelope);
+    if (nextDocument === generated.document) break;
+    generated.document = nextDocument;
+    generated.visibleDocument = nextDocument;
+    generated.stagePlan.lastVisibleRevision = nextDocument.revision;
+    accepted.push(envelope);
+  }
+
+  return accepted;
+}
+
+function applyLocalEventFallback(
+  generated: GeneratedSessionState,
+  session: AppSession | undefined,
+  block: GeneratedBlock,
+  intentId: string,
+  value: unknown,
+) {
   const ops = eventPatchOps(generated, block, intentId, value);
   const eventEnvelope: PatchEnvelope = {
     protocolVersion: 1,
@@ -165,17 +205,8 @@ export function handleGeneratedUiEvent(
   };
   generated.document = applyPatchEnvelope(generated.document, eventEnvelope);
   generated.visibleDocument = generated.document;
-  generated.eventPatchLog.push(eventEnvelope);
-
-  if (session) {
-    rememberCheckpoint(
-      session.intent,
-      generated.document,
-      [...generated.stream.slice(0, generated.nextPatchIndex), ...generated.eventPatchLog],
-      generated.actionHistory,
-      generated.eventPatchLog,
-    );
-  }
+  generated.stagePlan.lastVisibleRevision = generated.document.revision;
+  return eventEnvelope;
 }
 
 function eventPatchOps(
