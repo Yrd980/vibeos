@@ -62,9 +62,14 @@ button {
 }
 
 .desktop-icon:focus,
-.desktop-icon:hover {
+.desktop-icon:hover,
+.desktop-icon.selected {
   border-color: rgba(255, 255, 255, 0.55);
   background: rgba(0, 0, 128, 0.26);
+}
+
+.desktop-icon.selected span:last-child {
+  background: #000080;
 }
 
 .desktop-icon-glyph {

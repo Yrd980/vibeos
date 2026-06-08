@@ -35,6 +35,10 @@ export function applySemanticSuggestions(shell: ShellState, requestId: number, q
   shell.searchResults = mergeSearchResults(resolveSearchResults(query, shell.recentIntents), results);
 }
 
+export function selectDesktopIcon(shell: ShellState, iconId: string) {
+  shell.desktopSelectedIconId = iconId;
+}
+
 export function moveSearchSelection(shell: ShellState, delta: number) {
   const count = shell.searchResults.length;
   if (!count) return;

@@ -9,6 +9,7 @@ import {
   Square,
   X,
 } from 'lucide-react';
+import { createLaunchIntent } from './runtime/intentResolver';
 import { RuntimeKernel } from './runtime/kernel';
 import type {
   BrowserState,
@@ -97,10 +98,38 @@ function Desktop({
   return (
     <div className="desktop">
       <div className="desktop-icons">
-        <DesktopIcon icon="browser" label="Internet Explorer" onDoubleClick={() => dispatchLaunch('Internet Explorer', dispatch)} />
-        <DesktopIcon icon="notepad" label="Notepad" onDoubleClick={() => dispatchLaunch('Notepad', dispatch)} />
-        <DesktopIcon icon="calculator" label="Calculator" onDoubleClick={() => dispatchLaunch('Calculator', dispatch)} />
-        <DesktopIcon icon="encarta" label="Encarta 98" onDoubleClick={() => dispatchLaunch('Encarta 98 about Mark Russinovich', dispatch)} />
+        <DesktopIcon
+          icon="browser"
+          iconId="browser"
+          label="Internet Explorer"
+          selected={snapshot.shell.desktopSelectedIconId === 'browser'}
+          onSelect={() => dispatch({ type: 'shell.selectDesktopIcon', iconId: 'browser' })}
+          onDoubleClick={() => dispatchLaunch('Internet Explorer', dispatch)}
+        />
+        <DesktopIcon
+          icon="notepad"
+          iconId="notepad"
+          label="Notepad"
+          selected={snapshot.shell.desktopSelectedIconId === 'notepad'}
+          onSelect={() => dispatch({ type: 'shell.selectDesktopIcon', iconId: 'notepad' })}
+          onDoubleClick={() => dispatchLaunch('Notepad', dispatch)}
+        />
+        <DesktopIcon
+          icon="calculator"
+          iconId="calculator"
+          label="Calculator"
+          selected={snapshot.shell.desktopSelectedIconId === 'calculator'}
+          onSelect={() => dispatch({ type: 'shell.selectDesktopIcon', iconId: 'calculator' })}
+          onDoubleClick={() => dispatchLaunch('Calculator', dispatch)}
+        />
+        <DesktopIcon
+          icon="encarta"
+          iconId="encarta"
+          label="Encarta 98"
+          selected={snapshot.shell.desktopSelectedIconId === 'encarta'}
+          onSelect={() => dispatch({ type: 'shell.selectDesktopIcon', iconId: 'encarta' })}
+          onDoubleClick={() => dispatchLaunch('Encarta 98 about Mark Russinovich', dispatch, true)}
+        />
       </div>
 
       {(snapshot.shell.startMenuOpen || snapshot.shell.appSearchOpen) && (
@@ -121,23 +150,28 @@ function Desktop({
   );
 }
 
-function dispatchLaunch(rawQuery: string, dispatch: (event: KernelEvent) => void) {
-  dispatch({ type: 'shell.setSearchQuery', query: rawQuery });
-  dispatch({ type: 'shell.launchSelectedSearch' });
+function dispatchLaunch(rawQuery: string, dispatch: (event: KernelEvent) => void, forceGenerated = false) {
+  dispatch({ type: 'shell.launchIntent', intent: createLaunchIntent(rawQuery, { source: 'desktop', forceGenerated }) });
 }
 
 function DesktopIcon({
   icon,
+  iconId,
   label,
+  selected,
+  onSelect,
   onDoubleClick,
 }: {
   icon: keyof typeof iconMap;
+  iconId: string;
   label: string;
+  selected: boolean;
+  onSelect: () => void;
   onDoubleClick: () => void;
 }) {
   const Icon = iconMap[icon];
   return (
-    <button className="desktop-icon" onDoubleClick={onDoubleClick}>
+    <button className={`desktop-icon ${selected ? 'selected' : ''}`} data-icon-id={iconId} onClick={onSelect} onDoubleClick={onDoubleClick}>
       <span className="desktop-icon-glyph">
         <Icon size={28} strokeWidth={1.6} />
       </span>

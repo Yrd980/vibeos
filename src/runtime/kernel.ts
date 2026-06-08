@@ -25,6 +25,7 @@ import {
   applySemanticSuggestions as applyShellSemanticSuggestions,
   moveSearchSelection as moveShellSearchSelection,
   rememberIntent as rememberShellIntent,
+  selectDesktopIcon as selectShellDesktopIcon,
   setSearchQuery as setShellSearchQuery,
 } from './shellRuntime';
 import { advanceBrowserStage, advanceGeneratedStage } from './stageScheduler';
@@ -113,6 +114,7 @@ export class RuntimeKernel {
       },
       closeSearch: () => this.closeSearch(),
       setSearchQuery: (query) => this.setSearchQuery(query),
+      selectDesktopIcon: (iconId) => selectShellDesktopIcon(this.state.shell, iconId),
       applySemanticSuggestions: (semanticEvent) =>
         this.applySemanticSuggestions(semanticEvent.requestId, semanticEvent.query, semanticEvent.results),
       moveSearchSelection: (delta) => this.moveSearchSelection(delta),

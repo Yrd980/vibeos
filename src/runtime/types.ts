@@ -431,6 +431,7 @@ export type KernelEvent =
   | { type: 'shell.openSearch' }
   | { type: 'shell.closeSearch' }
   | { type: 'shell.setSearchQuery'; query: string }
+  | { type: 'shell.selectDesktopIcon'; iconId: string }
   | { type: 'shell.semanticSuggestionsReady'; requestId: number; query: string; results: SearchResult[] }
   | { type: 'shell.moveSearchSelection'; delta: number }
   | { type: 'shell.launchSelectedSearch' }
