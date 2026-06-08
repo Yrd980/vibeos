@@ -343,7 +343,7 @@ export function classifyBrowserRoute(address: string) {
   const oldWeb = classifyOldWebRoute(normalized, domain);
   return {
     title: oldWeb.title,
-    kind: 'unknown' as const,
+    kind: oldWeb.pageKind as 'download-portal' | 'fan-site' | 'corporate-site' | 'forum-thread' | 'classic-software-page',
     statusText: 'Done - Simulated offline page',
     identity: identity(oldWeb.title, oldWeb.subtitle, 'browser', 'Done'),
     facsimileRoute: facsimile(oldWeb.pageKind, `http://${domain}/`, oldWeb.visualCues),
@@ -996,7 +996,7 @@ function classifyOldWebRoute(address: string, domain: string): OldWebRoute {
     };
   }
 
-  if (/\b(fan|fansite|shrine|tribute|webring|geocities|angelfire)\b/.test(lower)) {
+  if (/\b(fan|fans|fansite|fan-site|shrine|tribute|webring|geocities|angelfire)\b/.test(lower)) {
     return {
       pageKind: 'fan-site',
       title: `${name} Fan Site`,

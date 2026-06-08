@@ -109,6 +109,11 @@ export type BrowserPageKind =
   | 'example'
   | 'encarta'
   | 'download'
+  | 'download-portal'
+  | 'fan-site'
+  | 'corporate-site'
+  | 'forum-thread'
+  | 'classic-software-page'
   | 'unknown';
 
 export type BrowserPage = {
