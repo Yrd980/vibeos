@@ -269,6 +269,7 @@ export class RuntimeKernel {
       );
     } else {
       this.state.generatedApps[sessionId] = createGeneratedRuntimeState(sessionId, intent);
+      this.state.sessions[sessionId].hydrationState = this.state.generatedApps[sessionId].hydrationState;
     }
 
     markSessionRunning(this.state, sessionId);

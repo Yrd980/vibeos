@@ -395,6 +395,7 @@ export type GeneratedSessionState = {
   prompt: string;
   generationId: string;
   modelState: 'idle' | 'queued' | 'requesting' | 'streaming' | 'complete' | 'failed';
+  hydrationState: AppSession['hydrationState'];
   document: GeneratedDocument;
   visibleDocument: GeneratedDocument;
   stagePlan: StagePlan;

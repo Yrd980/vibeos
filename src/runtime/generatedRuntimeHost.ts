@@ -79,6 +79,7 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
     prompt: intent.prompt,
     generationId: `${sessionId}-generation`,
     modelState: modelStateFromProvider(provider.status, stream.length, nextPatchIndex),
+    hydrationState: hydration.kind,
     document,
     visibleDocument: document,
     stagePlan: {
