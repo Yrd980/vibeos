@@ -21,7 +21,7 @@ export function createSession(
     kind: options.runtimeBinding.sessionKind,
     intent: options.intent,
     runtimeId: options.runtimeBinding.runtimeId,
-    lifecycle: 'running',
+    lifecycle: options.hydrationState === 'hit' ? 'hydrating' : 'booting',
     createdAt: store.now,
     lastActiveAt: store.now,
     windowIds: [options.windowId],
@@ -35,6 +35,13 @@ export function createSession(
 export function markSessionActive(store: SessionStore, sessionId: string) {
   const session = store.sessions[sessionId];
   if (session) session.lastActiveAt = store.now;
+}
+
+export function markSessionRunning(store: SessionStore, sessionId: string) {
+  const session = store.sessions[sessionId];
+  if (!session || session.lifecycle === 'closed') return;
+  session.lifecycle = 'running';
+  session.lastActiveAt = store.now;
 }
 
 export function closeSessionWindow(store: SessionStore, sessionId: string, windowId: string) {

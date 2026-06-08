@@ -73,7 +73,7 @@ export function rememberCheckpoint(
   memoryCache.set(intent.seed, record);
 
   try {
-    window.localStorage.setItem(storageKey(intent.seed), JSON.stringify(record));
+    getLocalStorage()?.setItem(storageKey(intent.seed), JSON.stringify(record));
   } catch {
     // Memory cache keeps continuity for this session when storage is unavailable.
   }
@@ -84,7 +84,7 @@ function readRecord(seed: string): CacheRecord | undefined {
   if (memoryRecord) return memoryRecord;
 
   try {
-    const raw = window.localStorage.getItem(storageKey(seed));
+    const raw = getLocalStorage()?.getItem(storageKey(seed));
     if (!raw) return undefined;
     const record = JSON.parse(raw) as CacheRecord;
     memoryCache.set(seed, record);
@@ -96,6 +96,10 @@ function readRecord(seed: string): CacheRecord | undefined {
 
 function storageKey(seed: string) {
   return `vibeos-cache:${seed}`;
+}
+
+function getLocalStorage() {
+  return typeof globalThis.localStorage === 'undefined' ? undefined : globalThis.localStorage;
 }
 
 function isValidCachedDocument(document: GeneratedDocument) {

@@ -34,14 +34,18 @@ export function advanceBrowserStage(state: BrowserState): StageStepResult {
     return { advanced: false };
   }
 
-  state.page.document = applyPatchEnvelope(state.page.document, state.stream[state.nextPatchIndex]);
-  state.page.title = state.page.document.appIdentity.title;
-  state.page.statusText = state.page.document.appIdentity.statusText;
-  state.history[state.historyIndex] = state.page;
+  const nextDocument = applyPatchEnvelope(state.page.document, state.stream[state.nextPatchIndex]);
+  const accepted = nextDocument !== state.page.document;
+  if (accepted) {
+    state.page.document = nextDocument;
+    state.page.title = state.page.document.appIdentity.title;
+    state.page.statusText = state.page.document.appIdentity.statusText;
+    state.history[state.historyIndex] = state.page;
+  }
   state.nextPatchIndex += 1;
 
   return {
-    advanced: true,
+    advanced: accepted,
     title: `Internet Explorer - ${state.page.title}`,
     iconToken: 'browser',
   };

@@ -20,7 +20,7 @@ import {
   pressLocalCalculator,
 } from './localRuntimeHost';
 import { resolveRuntimeBinding } from './runtimeRegistry';
-import { closeSessionWindow, createSession } from './sessionManager';
+import { closeSessionWindow, createSession, markSessionActive, markSessionRunning } from './sessionManager';
 import {
   applySemanticSuggestions as applyShellSemanticSuggestions,
   moveSearchSelection as moveShellSearchSelection,
@@ -269,6 +269,7 @@ export class RuntimeKernel {
       this.state.generatedApps[sessionId] = createGeneratedRuntimeState(sessionId, intent);
     }
 
+    markSessionRunning(this.state, sessionId);
     rememberShellIntent(this.state.shell, intent);
     this.state.shell.startMenuOpen = false;
     this.state.shell.appSearchOpen = false;
@@ -318,6 +319,8 @@ export class RuntimeKernel {
 
   private focusWindow(windowId: string) {
     focusManagedWindow(this.state, windowId);
+    const windowState = this.state.windows[windowId];
+    if (windowState) markSessionActive(this.state, windowState.sessionId);
   }
 
   private setWindowMode(windowId: string, mode: 'normal' | 'minimized' | 'maximized') {

@@ -15,7 +15,11 @@ export function setSearchQuery(
   shell.selectedSearchIndex = 0;
 
   if (query.trim()) {
-    window.setTimeout(() => {
+    const schedule = globalThis.setTimeout ?? ((callback: () => void) => {
+      callback();
+      return 0;
+    });
+    schedule(() => {
       scheduleSemantic(requestId, query, resolveSemanticSuggestions(query));
     }, 180);
   }

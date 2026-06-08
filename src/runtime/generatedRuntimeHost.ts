@@ -219,7 +219,7 @@ function createGenerationMeta(sessionId: string, intent: LaunchIntent, baseRevis
       height: 560,
       colorDepth: 8,
     },
-    locale: navigator.language || 'en-US',
+    locale: globalThis.navigator?.language || 'en-US',
     safetyMode: 'offline-simulated',
   };
 }
