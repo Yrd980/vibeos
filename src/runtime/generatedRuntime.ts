@@ -1731,6 +1731,12 @@ function validateControlProps(props: Record<string, unknown>) {
 function validateSensitiveFormControls(props: Record<string, unknown>) {
   if (isSensitiveControlProps(props) && props.disabled !== true) return false;
   if (!Array.isArray(props.fields)) return true;
+  if (props.fields.some((field) => typeof field === 'object' && field !== null && !Array.isArray(field) && isSensitiveControlProps(field as Record<string, unknown>))) {
+    return props.disabled === true && props.fields.every((field) => {
+      if (typeof field !== 'object' || field === null || Array.isArray(field)) return false;
+      return (field as Record<string, unknown>).disabled === true;
+    });
+  }
   return props.fields.every((field) => {
     if (typeof field !== 'object' || field === null || Array.isArray(field)) return false;
     const fieldRecord = field as Record<string, unknown>;

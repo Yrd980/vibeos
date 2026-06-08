@@ -820,11 +820,13 @@ function BlockView({
 
   if (block.type === 'form') {
     const fields = Array.isArray(block.props.fields) ? block.props.fields : [];
+    const disabled = block.props.disabled === true || fields.some(isSensitiveFormField);
     return (
       <form
         className={className}
         onSubmit={(event) => {
           event.preventDefault();
+          if (disabled) return;
           dispatchBlockIntent(block, document, sessionId, dispatch, 'submit', block.props.title);
         }}
       >
@@ -834,12 +836,12 @@ function BlockView({
           return (
             <label key={`${field.label}-${index}`}>
               <span>{field.label}</span>
-              <input value={field.value} readOnly disabled={field.disabled} />
+              <input value={field.value} readOnly disabled={disabled || field.disabled} />
             </label>
           );
         })}
         {block.props.text != null && <p>{String(block.props.text)}</p>}
-        <button type="submit" disabled={block.props.disabled === true}>Submit</button>
+        <button type="submit" disabled={disabled}>Submit</button>
       </form>
     );
   }
@@ -1405,6 +1407,12 @@ function isNestedWindow(value: unknown): value is { title: string; text: string 
 
 function isFormField(value: unknown): value is { label: string; value: string; disabled?: boolean } {
   return typeof value === 'object' && value !== null && 'label' in value && 'value' in value;
+}
+
+function isSensitiveFormField(value: unknown) {
+  if (!isFormField(value)) return false;
+  const text = [value.label, value.value, 'type' in value ? String(value.type) : ''].join(' ').toLowerCase();
+  return /\b(password|passcode|login|sign in|payment|credit card|card number|cvv|cvc|billing)\b/.test(text);
 }
 
 function isTextSpan(value: unknown): value is { text: string } {
