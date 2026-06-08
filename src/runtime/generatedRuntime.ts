@@ -474,7 +474,7 @@ function createTodoStream(sessionId: string, intent: LaunchIntent): PatchEnvelop
       },
       {
         op: 'registerEventIntent',
-        intent: eventIntent('complete-task', 'tasks', 'select', 'Select a task and patch the detail pane.'),
+        intent: eventIntent('complete-task', 'tasks', 'select', 'Select a task and patch the detail pane.', stringValueSchema(160)),
       },
       { op: 'insertBlock', parentId: 'root', childId: 'detail' },
       { op: 'setStage', stage: 'ready' },
@@ -522,7 +522,13 @@ function createRudeCalculatorStream(sessionId: string, intent: LaunchIntent): Pa
     [
       { op: 'setStage', stage: 'ready' },
       { op: 'setStatusText', text: 'Generated calculator personality ready. Local Calculator remains separate.' },
-      { op: 'registerEventIntent', intent: eventIntent('press-generated-key', 'panel', 'click', 'Patch calculator display locally.') },
+      {
+        op: 'registerEventIntent',
+        intent: eventIntent('press-generated-key', 'panel', 'click', 'Patch calculator display locally.', {
+          type: 'string',
+          enum: ['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', '.', '=', '+'],
+        }),
+      },
     ],
   ]);
 }
@@ -635,7 +641,7 @@ function createDownloadPortalStream(sessionId: string, intent: LaunchIntent): Pa
     [
       { op: 'createBlock', block: block('status', 'status-bar', { text: 'Ready - mirror latency is theatrical' }, [], ['status-bar']) },
       { op: 'insertBlock', parentId: 'root', childId: 'status' },
-      { op: 'registerEventIntent', intent: eventIntent('choose-mirror', 'portal', 'click', 'Choose a fake download mirror.') },
+      { op: 'registerEventIntent', intent: eventIntent('choose-mirror', 'portal', 'click', 'Choose a fake download mirror.', stringValueSchema(120)) },
       { op: 'setStage', stage: 'ready' },
       { op: 'setStatusText', text: 'Download portal ready. No file transfer can occur.' },
     ],
@@ -762,7 +768,7 @@ function createNestedOsStream(sessionId: string, intent: LaunchIntent): PatchEnv
       { op: 'setStage', stage: 'building-content' },
     ],
     [
-      { op: 'registerEventIntent', intent: eventIntent('open-inner-icon', 'inner-desktop', 'open-dialog', 'Open a simulated inner desktop icon.') },
+      { op: 'registerEventIntent', intent: eventIntent('open-inner-icon', 'inner-desktop', 'open-dialog', 'Open a simulated inner desktop icon.', stringValueSchema(80)) },
       { op: 'setStage', stage: 'ready' },
       { op: 'setStatusText', text: 'Nested OS ready. Inner interactions stay simulated.' },
     ],
@@ -817,7 +823,13 @@ function createFailureStream(sessionId: string, intent: LaunchIntent): PatchEnve
             }, [], ['win98-panel', 'warning']),
           },
           { op: 'insertBlock', parentId: 'root', childId: 'fallback-actions' },
-          { op: 'registerEventIntent', intent: eventIntent('fallback-action', 'fallback-actions', 'click', 'Handle a provider fallback action.') },
+          {
+            op: 'registerEventIntent',
+            intent: eventIntent('fallback-action', 'fallback-actions', 'click', 'Handle a provider fallback action.', {
+              type: 'string',
+              enum: ['Retry', 'Continue', 'Regenerate', 'Make more realistic'],
+            }),
+          },
           { op: 'setStage', stage: 'stale' },
           { op: 'setStatusText', text: 'Stale offline fallback. Internal errors are hidden.' },
         ],
@@ -896,7 +908,7 @@ function createGenericAppStream(sessionId: string, intent: LaunchIntent): PatchE
     [
       { op: 'createBlock', block: block('status', 'status-bar', { text: 'Ready - simulated offline app' }, [], ['status-bar']) },
       { op: 'insertBlock', parentId: 'root', childId: 'status' },
-      { op: 'registerEventIntent', intent: eventIntent('inspect-table-row', 'table', 'select', 'Select a generated table row and patch the detail panel.') },
+      { op: 'registerEventIntent', intent: eventIntent('inspect-table-row', 'table', 'select', 'Select a generated table row and patch the detail panel.', tableRowValueSchema()) },
       { op: 'setStage', stage: 'ready' },
       { op: 'setStatusText', text: 'Ready. Provider stream replaced by deterministic patch sequence.' },
     ],
@@ -1637,6 +1649,92 @@ function validateMetadataValue(value: unknown): boolean {
   return false;
 }
 
+function validateEventValueSchema(schema: unknown): boolean {
+  if (schema == null) return true;
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return false;
+  const spec = schema as Record<string, unknown>;
+  if (!validatePropBag(spec)) return false;
+  if (!['string', 'number', 'boolean', 'object', 'array'].includes(String(spec.type))) return false;
+  if (spec.description != null && !isLimitedString(spec.description, 180)) return false;
+  if (spec.enum != null && (!Array.isArray(spec.enum) || spec.enum.length > 32 || !spec.enum.every(validateMetadataValue))) return false;
+  if (spec.type === 'string') {
+    return (
+      (spec.minLength == null || isNonNegativeInteger(spec.minLength, 240)) &&
+      (spec.maxLength == null || isNonNegativeInteger(spec.maxLength, 240)) &&
+      (spec.pattern == null || isSafePattern(spec.pattern))
+    );
+  }
+  if (spec.type === 'number') {
+    return (
+      (spec.min == null || typeof spec.min === 'number') &&
+      (spec.max == null || typeof spec.max === 'number') &&
+      (spec.integer == null || typeof spec.integer === 'boolean')
+    );
+  }
+  if (spec.type === 'object') {
+    return validateObjectEventValueSchema(spec);
+  }
+  if (spec.type === 'array') {
+    return (
+      spec.items != null &&
+      validateEventValueSchema(spec.items) &&
+      (spec.minItems == null || isNonNegativeInteger(spec.minItems, maxItems)) &&
+      (spec.maxItems == null || isNonNegativeInteger(spec.maxItems, maxItems))
+    );
+  }
+  return true;
+}
+
+function validateObjectEventValueSchema(spec: Record<string, unknown>) {
+  if (spec.properties == null || typeof spec.properties !== 'object' || spec.properties === null || Array.isArray(spec.properties)) return false;
+  const properties = spec.properties as Record<string, unknown>;
+  const propertyEntries = Object.entries(properties);
+  if (!propertyEntries.length || propertyEntries.length > 16 || !propertyEntries.every(([key, child]) => isSafeKey(key) && validateEventValueSchema(child))) {
+    return false;
+  }
+  if (spec.required != null) {
+    if (!isStringArray(spec.required, 16, 64)) return false;
+    if (!(spec.required as string[]).every((key) => key in properties)) return false;
+  }
+  return spec.additionalProperties == null || spec.additionalProperties === false;
+}
+
+function validateEventObjectValue(spec: Record<string, unknown>, value: unknown) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const properties = spec.properties as Record<string, unknown>;
+  const allowedKeys = new Set(Object.keys(properties));
+  const required = Array.isArray(spec.required) ? spec.required : [];
+  if (!required.every((key) => typeof key === 'string' && key in record)) return false;
+  if (spec.additionalProperties !== true && !Object.keys(record).every((key) => allowedKeys.has(key))) return false;
+  return Object.entries(properties).every(([key, childSchema]) => !(key in record) || validateEventValue(childSchema, record[key]));
+}
+
+function validateEventArrayValue(spec: Record<string, unknown>, value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const minItems = typeof spec.minItems === 'number' ? spec.minItems : 0;
+  const maxItemsForSchema = typeof spec.maxItems === 'number' ? spec.maxItems : maxItems;
+  return (
+    value.length >= minItems &&
+    value.length <= maxItemsForSchema &&
+    value.every((item) => validateEventValue(spec.items, item))
+  );
+}
+
+function isNonNegativeInteger(value: unknown, max: number) {
+  return Number.isInteger(value) && typeof value === 'number' && value >= 0 && value <= max;
+}
+
+function isSafePattern(value: unknown) {
+  if (!isLimitedString(value, 120)) return false;
+  try {
+    new RegExp(String(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function validateItemValue(item: unknown): boolean {
   if (typeof item === 'string') return item.length <= 160;
   if (typeof item !== 'object' || item === null || Array.isArray(item)) return false;
@@ -1661,8 +1759,50 @@ function validateEventIntent(document: GeneratedDocument, intent: EventIntent) {
     Boolean(document.blocks[intent.blockId]) &&
     isLimitedString(intent.id, 80) &&
     isLimitedString(intent.description, 180) &&
-    ['click', 'submit', 'change', 'select', 'navigate-simulated', 'open-dialog'].includes(intent.eventType)
+    ['click', 'submit', 'change', 'select', 'navigate-simulated', 'open-dialog'].includes(intent.eventType) &&
+    validateEventValueSchema(intent.valueSchema)
   );
+}
+
+export function validateEventValue(schema: unknown, value: unknown): boolean {
+  if (schema == null) return validateMetadataValue(value);
+  if (!validateEventValueSchema(schema)) return false;
+
+  const spec = schema as Record<string, unknown>;
+  if (Array.isArray(spec.enum) && !spec.enum.some((option) => Object.is(option, value))) return false;
+
+  switch (spec.type) {
+    case 'string': {
+      const minLength = typeof spec.minLength === 'number' ? spec.minLength : undefined;
+      const maxLength = typeof spec.maxLength === 'number' ? spec.maxLength : undefined;
+      const pattern = typeof spec.pattern === 'string' ? spec.pattern : undefined;
+      return (
+        typeof value === 'string' &&
+        (minLength == null || value.length >= minLength) &&
+        (maxLength == null || value.length <= maxLength) &&
+        (pattern == null || new RegExp(pattern).test(value))
+      );
+    }
+    case 'number': {
+      const min = typeof spec.min === 'number' ? spec.min : undefined;
+      const max = typeof spec.max === 'number' ? spec.max : undefined;
+      return (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        (spec.integer !== true || Number.isInteger(value)) &&
+        (min == null || value >= min) &&
+        (max == null || value <= max)
+      );
+    }
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'object':
+      return validateEventObjectValue(spec, value);
+    case 'array':
+      return validateEventArrayValue(spec, value);
+    default:
+      return false;
+  }
 }
 
 function validateCachedBlock(document: GeneratedDocument, blockId: string, blockValue: GeneratedBlock) {
@@ -2008,12 +2148,27 @@ function eventIntent(
   blockId: string,
   eventType: EventIntent['eventType'],
   description: string,
+  valueSchema?: unknown,
 ): EventIntent {
   return {
     id,
     blockId,
     eventType,
     description,
+    valueSchema,
+  };
+}
+
+function stringValueSchema(maxLength: number) {
+  return { type: 'string', maxLength };
+}
+
+function tableRowValueSchema() {
+  return {
+    type: 'array',
+    minItems: 1,
+    maxItems: 12,
+    items: stringValueSchema(160),
   };
 }
 

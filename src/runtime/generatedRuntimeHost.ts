@@ -1,4 +1,4 @@
-import { applyPatchEnvelope, createEmptyDocument } from './generatedRuntime';
+import { applyPatchEnvelope, createEmptyDocument, validateEventValue } from './generatedRuntime';
 import { hydrateCache, rememberCheckpoint } from './cacheHydrator';
 import { cacheReplayStream } from './fallbackAdapter';
 import { selectGeneratedProvider } from './providerRegistry';
@@ -162,6 +162,7 @@ export function handleGeneratedUiEvent(
   if (intent.blockId !== blockId) return;
   if (intent.eventType !== eventType) return;
   if (baseRevision !== generated.document.revision) return;
+  if (!validateEventValue(intent.valueSchema, value)) return;
 
   generated.actionHistory.push({
     sessionId: session?.id ?? '',
