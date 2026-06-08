@@ -20,7 +20,10 @@ export function fullDocumentToPatchStream(
     : [];
   const blockCreates = collectBlocksPostOrder(document)
     .filter((block) => block.id !== document.rootBlockId)
-    .map((block): PatchOperation => ({ op: 'createBlock', block: { ...block, eventIntents: undefined } }));
+    .map((block): PatchOperation => ({ op: 'createBlock', block: { ...block, children: [], eventIntents: undefined } }));
+  const childSetOps = Object.values(document.blocks)
+    .filter((block) => block.id !== document.rootBlockId && block.children.length > 0)
+    .map((block): PatchOperation => ({ op: 'setChildren', blockId: block.id, childIds: block.children }));
   const routeOps: PatchOperation[] = document.facsimileRoute
     ? [{ op: 'setFacsimileRoute', route: document.facsimileRoute }]
     : [];
@@ -33,6 +36,7 @@ export function fullDocumentToPatchStream(
     [
       ...resourceOps,
       ...blockCreates,
+      ...childSetOps,
       { op: 'setChildren', blockId: document.rootBlockId, childIds: rootChildren },
       ...Object.values(document.eventIntents).map((intent): PatchOperation => ({ op: 'registerEventIntent', intent })),
       ...routeOps,
