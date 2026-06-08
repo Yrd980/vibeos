@@ -99,6 +99,28 @@ export function resolveSearchResults(query: string, recents: LaunchIntent[]): Se
     });
   };
 
+  const addBrowserSearch = (searchQuery: string) => {
+    results.push({
+      id: `result-${results.length}-offline-web-${slug(searchQuery)}`,
+      icon: 'browser',
+      title: `Search the offline web for "${searchQuery}"`,
+      kind: 'Browser search',
+      description: 'Open in Internet Explorer.',
+      intent: {
+        id: nextIntentId(`offline web ${searchQuery}`),
+        source: 'search',
+        kind: 'browser-page',
+        rawQuery: searchQuery,
+        title: `Google Search: ${searchQuery}`,
+        prompt: searchQuery,
+        seed: slug(`offline-web-${searchQuery}`),
+        iconHint: 'browser',
+        browserAddress: searchQuery,
+        generationMode: 'staged',
+      },
+    });
+  };
+
   if (!normalized) {
     add('Internet Explorer', 'Local browser', 'Open the simulated offline web.', 'Internet Explorer', 'browser');
     add('Calculator', 'Local app', 'Classic local calculator. No generated behavior.', 'Calculator', 'calculator');
@@ -226,7 +248,7 @@ export function resolveSearchResults(query: string, recents: LaunchIntent[]): Se
     }
 
     add(`Create "${normalized}"`, 'Generated app', 'Invent a small Windows-like app for this prompt.', normalized, 'generated');
-    add(`Search the offline web for "${normalized}"`, 'Browser search', 'Open in Internet Explorer.', normalized, 'browser');
+    addBrowserSearch(normalized);
     add(`${titleFromQuery(normalized)}.vdoc`, 'Fake file', 'Open a simulated desktop document.', `${normalized} file`, 'file');
     add(`${titleFromQuery(normalized)} Settings`, 'System tool', 'Open a generated Control Panel-style property sheet.', `${normalized} settings`, 'settings');
   }

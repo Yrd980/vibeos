@@ -27,6 +27,8 @@ export type KernelEventHandlers = {
   browserForward(sessionId: string): void;
   browserRefresh(sessionId: string): void;
   browserStop(sessionId: string): void;
+  browserToggleFavorites(sessionId: string): void;
+  browserAddFavorite(sessionId: string): void;
   tickRuntimes(): void;
   tickGenerated(sessionId: string): void;
   generatedUiEvent(event: Extract<KernelEvent, { type: 'generated.uiEvent' }>): void;
@@ -111,6 +113,12 @@ export function routeKernelEvent(event: KernelEvent, handlers: KernelEventHandle
       break;
     case 'browser.stop':
       handlers.browserStop(event.sessionId);
+      break;
+    case 'browser.toggleFavorites':
+      handlers.browserToggleFavorites(event.sessionId);
+      break;
+    case 'browser.addFavorite':
+      handlers.browserAddFavorite(event.sessionId);
       break;
     case 'runtime.tick':
       handlers.tickRuntimes();

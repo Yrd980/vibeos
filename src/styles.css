@@ -441,6 +441,56 @@ button {
   padding: 1px 8px;
 }
 
+.browser-favorites {
+  position: relative;
+}
+
+.favorites-menu {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  z-index: 20;
+  width: 210px;
+  padding: 3px;
+  border: 2px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  background: #c0c0c0;
+  box-shadow: 2px 2px 0 #404040;
+}
+
+.favorites-menu button {
+  display: grid;
+  width: 100%;
+  min-height: 31px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  padding: 3px 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.favorites-menu button:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+.favorites-menu small {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorites-divider {
+  height: 1px;
+  margin: 3px 2px;
+  background: #808080;
+  border-bottom: 1px solid #ffffff;
+}
+
 .block-tab-strip {
   display: flex;
   align-items: end;

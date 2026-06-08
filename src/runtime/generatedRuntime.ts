@@ -169,22 +169,79 @@ export function applyPatchEnvelope(document: GeneratedDocument, envelope: PatchE
   const working = cloneDocument(document);
 
   for (const op of ops) {
-    if (!validatePatch(working, op)) {
+    try {
+      if (!validatePatch(working, op)) {
+        return document;
+      }
+      applyPatch(working, op);
+    } catch {
       return document;
     }
-    applyPatch(working, op);
   }
 
-  if (!validateBlockGraph(working)) {
-    return document;
-  }
-
-  if (!validateDocumentResources(working)) {
+  if (!validateBlockGraph(working) || !validateDocumentResources(working)) {
     return document;
   }
 
   working.revision = envelope.resultRevision;
   return working;
+}
+
+export function validateGeneratedDocument(value: unknown): value is GeneratedDocument {
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const document = value as GeneratedDocument;
+    if (
+      !isLimitedString(document.documentId, 120) ||
+      !Number.isInteger(document.revision) ||
+      document.revision < 0 ||
+      !isValidStage(document.stage) ||
+      !isLimitedString(document.rootBlockId, 120) ||
+      !validateIdentityPatch(document.appIdentity) ||
+      typeof document.blocks !== 'object' ||
+      document.blocks === null ||
+      Array.isArray(document.blocks) ||
+      typeof document.eventIntents !== 'object' ||
+      document.eventIntents === null ||
+      Array.isArray(document.eventIntents) ||
+      !validateResourceManifest(document.resourceManifest)
+    ) {
+      return false;
+    }
+
+    const blockEntries = Object.entries(document.blocks);
+    if (!blockEntries.length || blockEntries.length > maxBlocks || !document.blocks[document.rootBlockId]) return false;
+
+    for (const [blockId, blockValue] of blockEntries) {
+      if (!validateCachedBlock(document, blockId, blockValue)) return false;
+    }
+
+    for (const [intentId, intent] of Object.entries(document.eventIntents)) {
+      if (
+        intent.id !== intentId ||
+        !validateEventIntent(document, intent) ||
+        !(document.blocks[intent.blockId].eventIntents ?? []).includes(intentId)
+      ) {
+        return false;
+      }
+    }
+
+    for (const blockValue of Object.values(document.blocks)) {
+      if ((blockValue.eventIntents ?? []).some((intentId) => !document.eventIntents[intentId])) return false;
+    }
+
+    if (document.facsimileRoute != null && !validateFacsimileRoute(document.facsimileRoute)) return false;
+    if (document.loadingHint !== undefined && document.loadingHint !== null && !isLimitedString(document.loadingHint, 240)) return false;
+    if (document.focusRequest !== undefined && !document.blocks[document.focusRequest]) return false;
+    if (document.scrollRequest !== undefined && !document.blocks[document.scrollRequest]) return false;
+    if (document.selection !== undefined && (!document.blocks[document.selection.blockId] || !validateMetadataValue(document.selection.value))) {
+      return false;
+    }
+
+    return validateBlockGraph(document) && validateDocumentResources(document);
+  } catch {
+    return false;
+  }
 }
 
 export function createGeneratedPatchStream(sessionId: string, intent: LaunchIntent): PatchEnvelope[] {
@@ -260,17 +317,6 @@ export function createBrowserPatchStream(sessionId: string, address: string): Pa
       { op: 'setFacsimileRoute', route: route.facsimileRoute },
     ],
     [
-      {
-        op: 'createBlock',
-        block: block('page-frame', 'facsimile-page', {
-          pageKind: route.facsimileRoute.pageKind,
-          displayUrl: route.facsimileRoute.displayUrl,
-          offlineSimulated: true,
-          visualCues: route.facsimileRoute.visualCues,
-          title: route.title,
-        }, [], route.kind === 'wikipedia' ? ['wiki-page'] : route.kind === 'google' ? ['google-page'] : ['win98-inset']),
-      },
-      { op: 'insertBlock', parentId: 'root', childId: 'page-frame' },
       { op: 'setStage', stage: 'building-chrome' },
       { op: 'setStatusText', text: 'Offline page chrome ready...' },
     ],
@@ -1619,6 +1665,27 @@ function validateEventIntent(document: GeneratedDocument, intent: EventIntent) {
   );
 }
 
+function validateCachedBlock(document: GeneratedDocument, blockId: string, blockValue: GeneratedBlock) {
+  return (
+    blockValue.id === blockId &&
+    allowedBlockTypes.has(blockValue.type) &&
+    validatePropBag(blockValue.props) &&
+    validatePropsForBlock(blockValue.type, blockValue.props) &&
+    validatePropsResourceRefs(document, blockValue.type, blockValue.props) &&
+    Array.isArray(blockValue.children) &&
+    blockValue.children.length <= maxChildren &&
+    blockValue.children.every((childId) => typeof childId === 'string') &&
+    Array.isArray(blockValue.styleTokens) &&
+    blockValue.styleTokens.length <= maxStyleTokens &&
+    blockValue.styleTokens.every((token) => allowedStyleTokens.has(token)) &&
+    (blockValue.eventIntents == null ||
+      (Array.isArray(blockValue.eventIntents) && blockValue.eventIntents.every((intentId) => typeof intentId === 'string'))) &&
+    (blockValue.state == null || validateStatePatch(blockValue.state)) &&
+    (blockValue.role == null || isLimitedString(blockValue.role, 80)) &&
+    (blockValue.accessibilityLabel == null || isLimitedString(blockValue.accessibilityLabel, 160))
+  );
+}
+
 function validatePropsForBlock(type: GeneratedBlock['type'], props: Record<string, unknown>) {
   if (!validatePropBag(props)) return false;
 
@@ -1820,6 +1887,18 @@ function validateFacsimileProps(props: Record<string, unknown>) {
     (props.title == null || isLimitedString(props.title, 160)) &&
     (props.body == null || isLimitedString(props.body, maxTextLength)) &&
     (props.nav == null || isStringArray(props.nav, 24, 80))
+  );
+}
+
+function validateFacsimileRoute(route: FacsimileRoute) {
+  return (
+    typeof route === 'object' &&
+    route !== null &&
+    route.offlineSimulated === true &&
+    isLimitedString(route.pageKind, 80) &&
+    isLimitedString(route.displayUrl, 240) &&
+    isStringArray(route.visualCues, 16, 80) &&
+    (route.routeIntent == null || isLimitedString(route.routeIntent, 120))
   );
 }
 

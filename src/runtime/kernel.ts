@@ -1,11 +1,13 @@
 import {
   createBrowserRuntimeState,
+  addCurrentBrowserFavorite,
   goBrowserHistory as goBrowserHistoryRuntime,
   navigateBrowserRuntime,
   refreshBrowserRuntime,
   setBrowserAddressDraft as setBrowserRuntimeAddressDraft,
   stopBrowserRuntime,
   tickBrowserRuntime,
+  toggleBrowserFavorites,
 } from './browserRuntimeHost';
 import { routeKernelEvent } from './eventRouter';
 import {
@@ -141,6 +143,8 @@ export class RuntimeKernel {
       browserForward: (sessionId) => this.goBrowserHistory(sessionId, 1),
       browserRefresh: (sessionId) => this.refreshBrowser(sessionId),
       browserStop: (sessionId) => stopBrowserRuntime(this.state.browserApps[sessionId], sessionId),
+      browserToggleFavorites: (sessionId) => toggleBrowserFavorites(this.state.browserApps[sessionId]),
+      browserAddFavorite: (sessionId) => addCurrentBrowserFavorite(this.state.browserApps[sessionId]),
       tickRuntimes: () => this.tickRuntimes(),
       tickGenerated: (sessionId) => this.tickGenerated(sessionId),
       generatedUiEvent: (uiEvent) =>

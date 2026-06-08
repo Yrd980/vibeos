@@ -124,12 +124,20 @@ export type BrowserPage = {
   statusText: string;
 };
 
+export type BrowserFavorite = {
+  title: string;
+  address: string;
+  kind: BrowserPageKind;
+};
+
 export type BrowserState = {
   address: string;
   addressDraft: string;
   page: BrowserPage;
   history: BrowserPage[];
   historyIndex: number;
+  favorites: BrowserFavorite[];
+  favoritesOpen: boolean;
   stream: PatchEnvelope[];
   nextPatchIndex: number;
 };
@@ -464,6 +472,8 @@ export type KernelEvent =
   | { type: 'browser.forward'; sessionId: string }
   | { type: 'browser.refresh'; sessionId: string }
   | { type: 'browser.stop'; sessionId: string }
+  | { type: 'browser.toggleFavorites'; sessionId: string }
+  | { type: 'browser.addFavorite'; sessionId: string }
   | { type: 'runtime.tick' }
   | { type: 'generated.tick'; sessionId: string }
   | { type: 'generated.uiEvent'; event: UiEvent };

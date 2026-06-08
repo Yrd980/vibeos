@@ -1,4 +1,4 @@
-import { applyPatchEnvelope, createEmptyDocument } from './generatedRuntime';
+import { applyPatchEnvelope, createEmptyDocument, validateGeneratedDocument } from './generatedRuntime';
 import type { CacheMeta, GeneratedDocument, HydrationResult, LaunchIntent, PatchEnvelope, UiEvent } from './types';
 
 type CacheRecord = {
@@ -23,7 +23,7 @@ export function hydrateCache(intent: LaunchIntent): HydrationResult {
   }
 
   if (
-    !isValidCachedDocument(record.checkpoint) ||
+    !validateGeneratedDocument(record.checkpoint) ||
     !isReplayCheckpoint(record.checkpoint) ||
     !Array.isArray(record.patchLog) ||
     !Array.isArray(record.eventLog)
@@ -38,6 +38,10 @@ export function hydrateCache(intent: LaunchIntent): HydrationResult {
 
   const checkpoint = cloneDocument(record.checkpoint);
   const replayedSnapshot = replay.snapshot;
+  if (!validateGeneratedDocument(checkpoint) || !validateGeneratedDocument(replayedSnapshot)) {
+    return { kind: 'miss' };
+  }
+
   const patchLog = replay.accepted;
   const eventLog = record.eventLog.filter(isValidUiEvent);
   const eventPatchLog = Array.isArray(record.eventPatchLog) ? record.eventPatchLog.filter(isValidPatchEnvelope) : [];
@@ -126,18 +130,6 @@ function getLocalStorage() {
   return typeof globalThis.localStorage === 'undefined' ? undefined : globalThis.localStorage;
 }
 
-function isValidCachedDocument(document: GeneratedDocument) {
-  return (
-    typeof document.documentId === 'string' &&
-    typeof document.revision === 'number' &&
-    document.revision >= 0 &&
-    typeof document.rootBlockId === 'string' &&
-    Boolean(document.blocks?.[document.rootBlockId]) &&
-    Object.keys(document.blocks).length <= 120 &&
-    typeof document.appIdentity?.title === 'string'
-  );
-}
-
 function replayPatchLog(checkpoint: GeneratedDocument, patchLog: PatchEnvelope[]) {
   let snapshot = cloneDocument(checkpoint);
   const accepted: PatchEnvelope[] = [];
@@ -181,7 +173,7 @@ function isPatchEnvelopeForDocument(document: GeneratedDocument, envelope: Patch
 
 function isCompleteCachedDocument(document: GeneratedDocument) {
   return (
-    isValidCachedDocument(document) &&
+    validateGeneratedDocument(document) &&
     (document.stage === 'ready' || document.stage === 'stale') &&
     document.revision > 0
   );

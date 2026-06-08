@@ -528,7 +528,33 @@ function BrowserApp({
         <button onClick={() => dispatch({ type: 'browser.refresh', sessionId })}>Refresh</button>
         <button onClick={() => dispatch({ type: 'browser.navigate', sessionId, address: 'about:home' })}>Home</button>
         <button onClick={() => dispatch({ type: 'browser.navigate', sessionId, address: state.addressDraft || 'google.com' })}>Search</button>
-        <button>Favorites</button>
+        <div className="browser-favorites">
+          <button
+            type="button"
+            aria-expanded={state.favoritesOpen}
+            onClick={() => dispatch({ type: 'browser.toggleFavorites', sessionId })}
+          >
+            Favorites
+          </button>
+          {state.favoritesOpen && (
+            <div className="favorites-menu">
+              <button type="button" onClick={() => dispatch({ type: 'browser.addFavorite', sessionId })}>
+                Add current page
+              </button>
+              <div className="favorites-divider" />
+              {state.favorites.map((favorite) => (
+                <button
+                  type="button"
+                  key={favorite.address}
+                  onClick={() => dispatch({ type: 'browser.navigate', sessionId, address: favorite.address })}
+                >
+                  <span>{favorite.title}</span>
+                  <small>{favorite.address}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <form
         className="address-bar"

@@ -1,7 +1,7 @@
 import { applyPatchEnvelope, classifyBrowserRoute, createEmptyDocument } from './generatedRuntime';
 import { mockBrowserProvider } from './providers';
 import { advanceBrowserStage, type StageStepResult } from './stageScheduler';
-import type { BrowserPage, BrowserState } from './types';
+import type { BrowserFavorite, BrowserPage, BrowserState } from './types';
 
 export function createBrowserRuntimeState(
   sessionId: string,
@@ -28,6 +28,8 @@ export function createBrowserRuntimeState(
     page,
     history: [page],
     historyIndex: 0,
+    favorites: defaultBrowserFavorites(),
+    favoritesOpen: false,
     stream,
     nextPatchIndex,
   };
@@ -53,6 +55,7 @@ export function navigateBrowserRuntime(
   const page = createBrowserPage(sessionId, nextAddress, nextDocumentId());
   browser.address = nextAddress;
   browser.addressDraft = nextAddress;
+  browser.favoritesOpen = false;
   browser.page = page;
   browser.history = [...browser.history.slice(0, browser.historyIndex + 1), page];
   browser.historyIndex = browser.history.length - 1;
@@ -72,6 +75,7 @@ export function goBrowserHistory(browser: BrowserState | undefined, delta: numbe
   browser.page = browser.history[nextIndex];
   browser.address = browser.page.address;
   browser.addressDraft = browser.page.address;
+  browser.favoritesOpen = false;
   browser.stream = [];
   browser.nextPatchIndex = 0;
 
@@ -88,6 +92,7 @@ export function refreshBrowserRuntime(
   const address = browser.address;
   browser.page = createBrowserPage(sessionId, address, nextDocumentId());
   browser.history[browser.historyIndex] = browser.page;
+  browser.favoritesOpen = false;
   browser.stream = mockBrowserProvider.start(address, sessionId);
   browser.nextPatchIndex = 0;
 
@@ -118,6 +123,25 @@ export function stopBrowserRuntime(browser: BrowserState | undefined, sessionId:
   });
 }
 
+export function toggleBrowserFavorites(browser: BrowserState | undefined) {
+  if (browser) browser.favoritesOpen = !browser.favoritesOpen;
+}
+
+export function addCurrentBrowserFavorite(browser: BrowserState | undefined) {
+  if (!browser) return;
+
+  const favorite: BrowserFavorite = {
+    title: browser.page.title,
+    address: browser.address,
+    kind: browser.page.kind,
+  };
+  browser.favorites = [
+    favorite,
+    ...browser.favorites.filter((item) => item.address !== favorite.address),
+  ].slice(0, 12);
+  browser.favoritesOpen = true;
+}
+
 function createBrowserPage(sessionId: string, address: string, documentId: string): BrowserPage {
   const route = classifyBrowserRoute(address);
   return {
@@ -127,4 +151,13 @@ function createBrowserPage(sessionId: string, address: string, documentId: strin
     document: createEmptyDocument(`browser-${sessionId}-${documentId}`, route.title),
     statusText: 'Opening page...',
   };
+}
+
+function defaultBrowserFavorites(): BrowserFavorite[] {
+  return [
+    { title: 'Google', address: 'google.com', kind: 'google' },
+    { title: 'Wikipedia', address: 'wikipedia alan turing', kind: 'wikipedia' },
+    { title: 'Example Domain', address: 'example.com', kind: 'example' },
+    { title: 'Encarta Articles', address: 'encyclopedia alan turing', kind: 'encarta' },
+  ];
 }
