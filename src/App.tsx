@@ -66,6 +66,8 @@ function Desktop({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+
       if (event.ctrlKey && event.key.toLowerCase() === 'l') {
         const focusedBrowser = snapshot.windows
           .filter((windowState) => windowState.focusState === 'focused')
@@ -886,7 +888,10 @@ function BlockView({
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={index}>
+            <tr
+              key={index}
+              onClick={() => dispatchBlockIntent(block, document, sessionId, dispatch, 'select', row)}
+            >
               {Array.isArray(row) && row.map((cell, cellIndex) => <td key={cellIndex}>{String(cell)}</td>)}
             </tr>
           ))}
@@ -1041,7 +1046,15 @@ function BlockView({
         <div className="download-layout">
           <main>
             <h2>Download Mirrors</h2>
-            {getArray(block.props.mirrors).map((mirror) => <button key={mirror} className="download-button">{mirror}</button>)}
+            {getArray(block.props.mirrors).map((mirror) => (
+              <button
+                key={mirror}
+                className="download-button"
+                onClick={() => dispatchBlockIntent(block, document, sessionId, dispatch, 'click', mirror)}
+              >
+                {mirror}
+              </button>
+            ))}
             <h2>System Requirements</h2>
             <ul>{getArray(block.props.requirements).map((item) => <li key={item}>{item}</li>)}</ul>
           </main>
@@ -1059,7 +1072,11 @@ function BlockView({
     return (
       <div className={className}>
         <div className="nested-icons">
-          {getArray(block.props.icons).map((icon) => <button key={icon}><Monitor size={20} />{icon}</button>)}
+          {getArray(block.props.icons).map((icon) => (
+            <button key={icon} onClick={() => dispatchBlockIntent(block, document, sessionId, dispatch, 'open-dialog', icon)}>
+              <Monitor size={20} />{icon}
+            </button>
+          ))}
         </div>
         <div className="nested-windows">
           {windows.map((innerWindow, index) => {

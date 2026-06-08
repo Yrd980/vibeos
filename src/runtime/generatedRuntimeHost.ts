@@ -4,7 +4,16 @@ import { cacheReplayStream } from './fallbackAdapter';
 import { selectGeneratedProvider } from './providerRegistry';
 import { mockGeneratedProvider, type ProviderSession } from './providers';
 import { advanceGeneratedStage, type StageStepResult } from './stageScheduler';
-import type { AppSession, GeneratedSessionState, GenerationSessionMeta, LaunchIntent, PatchEnvelope, ProviderRunState } from './types';
+import type {
+  AppSession,
+  GeneratedBlock,
+  GeneratedSessionState,
+  GenerationSessionMeta,
+  LaunchIntent,
+  PatchEnvelope,
+  PatchOperation,
+  ProviderRunState,
+} from './types';
 
 export function createGeneratedRuntimeState(sessionId: string, intent: LaunchIntent): GeneratedSessionState {
   let document = createEmptyDocument(`generated-${sessionId}`, intent.title);
@@ -131,15 +140,15 @@ export function handleGeneratedUiEvent(
   if (baseRevision !== generated.document.revision) return;
 
   generated.actionHistory.push({
-      sessionId: session?.id ?? '',
-      baseRevision: generated.document.revision,
+    sessionId: session?.id ?? '',
+    baseRevision: generated.document.revision,
     blockId,
     intentId,
     eventType: intent.eventType,
     value,
   });
 
-  const selected = typeof value === 'string' ? value : 'simulated item';
+  const ops = eventPatchOps(generated, block, intentId, value);
   const eventEnvelope: PatchEnvelope = {
     protocolVersion: 1,
     sessionId: session?.id ?? '',
@@ -150,17 +159,7 @@ export function handleGeneratedUiEvent(
     kind: 'transaction',
     payload: {
       transactionId: `${session?.id ?? 'session'}-event-${generated.actionHistory.length}`,
-      ops: [
-        {
-          op: 'mergeProps',
-          blockId: blockId === 'tasks' && generated.document.blocks.detail ? 'detail' : blockId,
-          props: {
-            text: `Handled "${intent.description}" for ${selected}. The model registered the intent; the local runtime routed it.`,
-            lastEvent: intentId,
-          },
-        },
-        { op: 'setStatusText', text: `Handled event intent ${intentId}.` },
-      ],
+      ops,
     },
   };
   generated.document = applyPatchEnvelope(generated.document, eventEnvelope);
@@ -176,6 +175,268 @@ export function handleGeneratedUiEvent(
       generated.eventPatchLog,
     );
   }
+}
+
+function eventPatchOps(
+  generated: GeneratedSessionState,
+  block: GeneratedBlock,
+  intentId: string,
+  value: unknown,
+): PatchOperation[] {
+  switch (intentId) {
+    case 'complete-task':
+      return taskSelectionOps(generated, block, value);
+    case 'press-generated-key':
+      return calculatorKeyOps(generated, block, value);
+    case 'choose-mirror':
+      return [
+        {
+          op: 'mergeProps',
+          blockId: block.id,
+          props: {
+            ad: `Selected mirror: ${displayValue(value)}. A fake transfer ticket was prepared and immediately cancelled.`,
+          },
+        },
+        { op: 'setStatusText', text: `Mirror selected: ${displayValue(value)}. No file transfer occurred.` },
+      ];
+    case 'open-inner-icon':
+      return nestedIconOps(block, value);
+    case 'fallback-action':
+      return fallbackActionOps(block, value);
+    case 'inspect-table-row':
+      return tableRowOps(generated, block, value);
+    default:
+      return genericEventOps(generated, block, intentId, value);
+  }
+}
+
+function taskSelectionOps(generated: GeneratedSessionState, block: GeneratedBlock, value: unknown): PatchOperation[] {
+  const selected = displayValue(value);
+  const itemId = findItemIdByTitle(block.props.items, selected);
+  const ops: PatchOperation[] = [];
+
+  if (itemId) {
+    ops.push({ op: 'updateItem', blockId: block.id, itemId, patch: { meta: 'Selected just now' } });
+  }
+
+  if (generated.document.blocks.detail) {
+    ops.push(
+      {
+        op: 'mergeProps',
+        blockId: 'detail',
+        props: {
+          title: 'Selected Task',
+          text: `"${selected}" is now the active simulated task. The local event router patched this detail pane without executing model code.`,
+        },
+      },
+      { op: 'scrollIntoView', blockId: 'detail' },
+    );
+  }
+
+  ops.push(
+    { op: 'setSelection', blockId: block.id, selection: selected },
+    { op: 'setStatusText', text: `Selected task: ${selected}.` },
+  );
+
+  return ops;
+}
+
+function calculatorKeyOps(generated: GeneratedSessionState, block: GeneratedBlock, value: unknown): PatchOperation[] {
+  const key = displayValue(value);
+  const display = nextGeneratedCalculatorDisplay(String(block.props.display ?? '0'), key);
+  const ops: PatchOperation[] = [
+    {
+      op: 'mergeProps',
+      blockId: block.id,
+      props: {
+        display,
+        caption: `Last generated key: ${key}. This is the hallucinated calculator, not the local Calculator.`,
+      },
+    },
+  ];
+
+  if (generated.document.blocks.remark) {
+    ops.push({
+      op: 'mergeProps',
+      blockId: 'remark',
+      props: {
+        text: `Status: accepted "${key}" with unnecessary confidence. Display now reads ${display}.`,
+      },
+    });
+  }
+
+  ops.push({ op: 'setStatusText', text: `Generated calculator key "${key}" patched locally.` });
+  return ops;
+}
+
+function nestedIconOps(block: GeneratedBlock, value: unknown): PatchOperation[] {
+  const selected = displayValue(value);
+  const windows = recordArray(block.props.windows)
+    .filter((windowValue) => windowValue.title !== selected)
+    .slice(-5);
+  const taskbar = [...stringArray(block.props.taskbar).filter((item) => item !== selected), selected].slice(-16);
+
+  return [
+    {
+      op: 'mergeProps',
+      blockId: block.id,
+      props: {
+        windows: [
+          ...windows,
+          {
+            title: selected,
+            text: `${selected} opened inside the nested desktop as another simulated block window.`,
+          },
+        ],
+        taskbar,
+      },
+    },
+    { op: 'setStatusText', text: `Nested OS opened "${selected}" locally.` },
+  ];
+}
+
+function fallbackActionOps(block: GeneratedBlock, value: unknown): PatchOperation[] {
+  const action = displayValue(value).toLowerCase();
+  const label = displayValue(value);
+
+  if (action === 'continue') {
+    return [
+      {
+        op: 'mergeProps',
+        blockId: block.id,
+        props: {
+          text: 'Continued from the last valid surface. Missing provider details were replaced with deterministic local placeholders.',
+        },
+      },
+      { op: 'setStage', stage: 'ready' },
+      { op: 'setStatusText', text: 'Continued offline from stale fallback.' },
+    ];
+  }
+
+  if (action === 'regenerate') {
+    return [
+      {
+        op: 'mergeProps',
+        blockId: block.id,
+        props: {
+          title: 'Regenerated Offline Fallback',
+          text: 'A fresh deterministic fallback panel replaced the failed provider tail without discarding the last valid UI.',
+        },
+      },
+      { op: 'setStatusText', text: 'Regenerated fallback surface locally.' },
+    ];
+  }
+
+  if (action === 'make more realistic') {
+    return [
+      {
+        op: 'mergeProps',
+        blockId: block.id,
+        props: {
+          text: 'Added realistic recovery detail: cached revision kept, provider hidden, retry budget reset, and offline simulation badge preserved.',
+        },
+      },
+      { op: 'setStatusText', text: 'Added low-risk realism details to fallback.' },
+    ];
+  }
+
+  return [
+    {
+      op: 'mergeProps',
+      blockId: block.id,
+      props: {
+        text: `Retry stayed local. The runtime would request a new patch stream while preserving this last valid staged surface.`,
+      },
+    },
+    { op: 'setStage', stage: 'stale' },
+    { op: 'setStatusText', text: `${label} prepared locally; raw provider errors remain hidden.` },
+  ];
+}
+
+function tableRowOps(generated: GeneratedSessionState, block: GeneratedBlock, value: unknown): PatchOperation[] {
+  const selected = displayValue(value);
+  const targetBlockId = generated.document.blocks.body ? 'body' : block.id;
+  return [
+    { op: 'setSelection', blockId: block.id, selection: selected },
+    {
+      op: 'mergeProps',
+      blockId: targetBlockId,
+      props: {
+        text: `Selected row: ${selected}. The detail surface changed through a typed select intent and a validated patch transaction.`,
+      },
+    },
+    { op: 'setStatusText', text: `Selected generated table row: ${selected}.` },
+  ];
+}
+
+function genericEventOps(
+  generated: GeneratedSessionState,
+  block: GeneratedBlock,
+  intentId: string,
+  value: unknown,
+): PatchOperation[] {
+  const selected = displayValue(value);
+  const targetBlockId = block.id === 'tasks' && generated.document.blocks.detail ? 'detail' : block.id;
+
+  return [
+    {
+      op: 'mergeProps',
+      blockId: targetBlockId,
+      props: {
+        text: `Handled event intent ${intentId} for ${selected}. The model registered the intent; the local runtime routed it.`,
+        lastEvent: intentId,
+      },
+    },
+    { op: 'setStatusText', text: `Handled event intent ${intentId}.` },
+  ];
+}
+
+function nextGeneratedCalculatorDisplay(current: string, key: string) {
+  if (/^\d$/.test(key) || key === '.') {
+    return (current === '0' || current.includes('=') ? key : `${current}${key}`).slice(-24);
+  }
+  if (['+', '-', '*', '/'].includes(key)) {
+    return `${current.replace(/\s+[+\-*/]\s*$/, '')} ${key} `.slice(-24);
+  }
+  if (key === '=') {
+    return `${current.trim()} = ${checksum(current) % 97}`.slice(0, 24);
+  }
+  return key.slice(0, 24) || '0';
+}
+
+function displayValue(value: unknown) {
+  if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 160);
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(' / ').slice(0, 160) || 'simulated row';
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    const title = record.title ?? record.label ?? record.name ?? record.id;
+    if (typeof title === 'string' && title.trim()) return title.trim().slice(0, 160);
+  }
+  return 'simulated item';
+}
+
+function findItemIdByTitle(items: unknown, title: string) {
+  if (!Array.isArray(items)) return undefined;
+  const item = items.find((itemValue) => {
+    if (typeof itemValue !== 'object' || itemValue === null || Array.isArray(itemValue)) return false;
+    return String((itemValue as Record<string, unknown>).title ?? '') === title;
+  });
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) return undefined;
+  const id = (item as Record<string, unknown>).id;
+  return typeof id === 'string' ? id : undefined;
+}
+
+function recordArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item));
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function checksum(value: string) {
+  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0);
 }
 
 function fillStreamFromProvider(state: GeneratedSessionState) {

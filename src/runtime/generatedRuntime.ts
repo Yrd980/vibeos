@@ -825,6 +825,7 @@ function createGenericAppStream(sessionId: string, intent: LaunchIntent): PatchE
     [
       { op: 'createBlock', block: block('status', 'status-bar', { text: 'Ready - simulated offline app' }, [], ['status-bar']) },
       { op: 'insertBlock', parentId: 'root', childId: 'status' },
+      { op: 'registerEventIntent', intent: eventIntent('inspect-table-row', 'table', 'select', 'Select a generated table row and patch the detail panel.') },
       { op: 'setStage', stage: 'ready' },
       { op: 'setStatusText', text: 'Ready. Provider stream replaced by deterministic patch sequence.' },
     ],
