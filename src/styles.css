@@ -1185,10 +1185,25 @@ button {
   font-weight: 700;
 }
 
-.block-search-home input {
+.google-search-form {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(520px, 100%);
+}
+
+.google-search-form input {
   width: min(520px, 100%);
   height: 30px;
   border: 1px solid #8a8a8a;
+  padding: 0 8px;
+}
+
+.google-search-form div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
 }
 
 .block-search-results {
@@ -1210,10 +1225,12 @@ button {
   font-size: 30px;
 }
 
-.google-search-line input {
+.google-search-line .google-search-form {
+  justify-items: start;
+}
+
+.google-search-line .google-search-form input {
   height: 28px;
-  border: 1px solid #8a8a8a;
-  padding: 0 8px;
 }
 
 .google-result {

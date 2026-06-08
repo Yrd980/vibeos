@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Calculator,
   FileText,
@@ -1160,12 +1160,12 @@ function BlockView({
     return (
       <div className={className}>
         <div className="google-logo">{String(block.props.brand ?? 'Google')}</div>
-        <input value={String(block.props.inputValue ?? '')} readOnly />
-        <div>
-          {getArray(block.props.buttons).map((button) => (
-            <button key={button}>{button}</button>
-          ))}
-        </div>
+        <BrowserSearchForm
+          value={String(block.props.inputValue ?? '')}
+          buttons={getArray(block.props.buttons)}
+          sessionId={sessionId}
+          dispatch={dispatch}
+        />
         <p>{String(block.props.note ?? '')}</p>
       </div>
     );
@@ -1177,7 +1177,11 @@ function BlockView({
       <div className={className}>
         <div className="google-search-line">
           <strong>Google</strong>
-          <input value={String(block.props.query ?? '')} readOnly />
+          <BrowserSearchForm
+            value={String(block.props.query ?? '')}
+            sessionId={sessionId}
+            dispatch={dispatch}
+          />
         </div>
         {results.map((result, index) => {
           if (!isSearchItem(result)) return null;
@@ -1349,6 +1353,59 @@ function BlockView({
         <BlockView key={childId} block={document.blocks[childId]} document={document} sessionId={sessionId} dispatch={dispatch} browser={browser} />
       ))}
     </div>
+  );
+}
+
+function BrowserSearchForm({
+  value,
+  buttons = ['Google Search'],
+  sessionId,
+  dispatch,
+}: {
+  value: string;
+  buttons?: string[];
+  sessionId: string;
+  dispatch: (event: KernelEvent) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const submit = () => {
+    const query = draft.trim();
+    if (!query) return;
+    dispatchSimulatedNavigation(sessionId, dispatch, query);
+  };
+
+  return (
+    <form
+      className="google-search-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        value={draft}
+        aria-label="Google search query"
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            submit();
+          }
+        }}
+      />
+      {buttons.length > 0 && (
+        <div>
+          {buttons.map((button) => (
+            <button key={button} type="submit">{button}</button>
+          ))}
+        </div>
+      )}
+    </form>
   );
 }
 
