@@ -69,7 +69,7 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
   return {
     prompt: intent.prompt,
     generationId: `${sessionId}-generation`,
-    modelState: nextPatchIndex >= stream.length ? 'complete' : 'streaming',
+    modelState: modelStateFromProvider(provider.status, stream.length, nextPatchIndex),
     document,
     visibleDocument: document,
     stagePlan: {
@@ -98,6 +98,7 @@ export function tickGeneratedRuntime(state: GeneratedSessionState | undefined, s
 
   const result = advanceGeneratedStage(state);
   state.provider.status = state.providerSession?.status ?? state.provider.status;
+  state.modelState = modelStateFromProvider(state.provider.status, state.stream.length, state.nextPatchIndex);
   if (result.advanced && session && state.document.stage === 'ready') {
     rememberCheckpoint(
       session.intent,
@@ -189,6 +190,7 @@ function fillStreamFromProvider(state: GeneratedSessionState) {
       : rawEnvelopes.filter((envelope) => envelope.baseRevision === state.document.revision);
   if (envelopes.length) state.stream.push(...envelopes);
   state.provider.status = state.providerSession.status;
+  state.modelState = modelStateFromProvider(state.provider.status, state.stream.length, state.nextPatchIndex);
 }
 
 function rebaseProviderEnvelopes(envelopes: ReturnType<ProviderSession['poll']>, baseRevision: number) {
@@ -231,4 +233,17 @@ function providerStateFromSession(session: ProviderSession): ProviderRunState {
     streamId: session.streamId,
     status: session.status,
   };
+}
+
+function modelStateFromProvider(
+  status: ProviderRunState['status'],
+  streamLength: number,
+  nextPatchIndex: number,
+): GeneratedSessionState['modelState'] {
+  if (status === 'queued') return 'queued';
+  if (status === 'requesting') return 'requesting';
+  if (status === 'failed') return nextPatchIndex < streamLength ? 'streaming' : 'failed';
+  if (status === 'cancelled') return 'failed';
+  if (nextPatchIndex < streamLength) return 'streaming';
+  return status === 'complete' ? 'complete' : 'idle';
 }

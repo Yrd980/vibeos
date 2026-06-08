@@ -148,5 +148,9 @@ function deepSeekFailureEnvelope(sessionId: string, streamId: string, baseRevisi
 }
 
 function sanitizeProviderMessage(message: string) {
-  return message.replace(/api key|bearer|token|deepseek/gi, 'provider').slice(0, 180);
+  const lower = message.toLowerCase();
+  if (lower.includes('configured') || lower.includes('api key') || lower.includes('token') || lower.includes('bearer')) {
+    return 'Provider is unavailable in offline-simulated mode.';
+  }
+  return 'Provider stream failed. Showing the last valid simulated surface.';
 }
