@@ -35,19 +35,21 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
     (hydration.kind === 'stale' && intent.generationMode === 'cached')
   ) {
     document = {
-      ...hydration.snapshot,
+      ...hydration.checkpoint,
       documentId: `generated-${sessionId}`,
     };
-    stream = cacheReplayStream(
-      sessionId,
-      document.revision,
-      hydration.kind === 'hit'
-        ? 'Restored from cache. Short replay complete.'
-        : hydration.kind === 'partial'
-          ? `Restored partial cache through revision ${document.revision}. Resuming offline construction.`
-          : `Restored stale cache: ${hydration.reason}.`,
-      hydration.kind === 'stale',
-    );
+    stream = rebindCacheReplayStream(sessionId, hydration.patchLog);
+    if (hydration.kind === 'stale') {
+      stream = [
+        ...stream,
+        ...cacheReplayStream(
+          sessionId,
+          lastReplayRevision(document.revision, stream),
+          `Restored stale cache: ${hydration.reason}.`,
+          true,
+        ),
+      ];
+    }
     provider = {
       providerId: 'cache-hydrator',
       source: 'cache',
@@ -56,6 +58,7 @@ export function createGeneratedRuntimeState(sessionId: string, intent: LaunchInt
     };
     if (hydration.kind === 'partial') {
       providerSession = mockGeneratedProvider.start(intent, createGenerationMeta(sessionId, intent, document.revision));
+      skipProviderPrefix(providerSession, hydration.missingFromRevision - document.revision - 1);
       provider = {
         ...provider,
         status: 'streaming',
@@ -509,6 +512,25 @@ function rebaseProviderEnvelopes(envelopes: ReturnType<ProviderSession['poll']>,
     baseRevision: baseRevision + index,
     resultRevision: baseRevision + index + 1,
   }));
+}
+
+function rebindCacheReplayStream(sessionId: string, envelopes: PatchEnvelope[]) {
+  return envelopes.map((envelope, index) => ({
+    ...envelope,
+    sessionId,
+    streamId: `${sessionId}-cache-replay`,
+    seq: index + 1,
+  }));
+}
+
+function lastReplayRevision(baseRevision: number, envelopes: PatchEnvelope[]) {
+  return envelopes.at(-1)?.resultRevision ?? baseRevision;
+}
+
+function skipProviderPrefix(providerSession: ProviderSession, count: number) {
+  for (let index = 0; index < count; index += 1) {
+    if (!providerSession.poll().length) return;
+  }
 }
 
 function createGenerationMeta(sessionId: string, intent: LaunchIntent, baseRevision: number): GenerationSessionMeta {

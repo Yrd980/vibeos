@@ -265,6 +265,7 @@ export type HydrationResult =
   | {
       kind: 'hit';
       snapshot: GeneratedDocument;
+      checkpoint: GeneratedDocument;
       patchLog: PatchEnvelope[];
       eventLog: UiEvent[];
       eventPatchLog: PatchEnvelope[];
@@ -273,6 +274,7 @@ export type HydrationResult =
   | {
       kind: 'partial';
       snapshot: GeneratedDocument;
+      checkpoint: GeneratedDocument;
       missingFromRevision: number;
       patchLog: PatchEnvelope[];
       eventLog: UiEvent[];
@@ -282,6 +284,7 @@ export type HydrationResult =
   | {
       kind: 'stale';
       snapshot: GeneratedDocument;
+      checkpoint: GeneratedDocument;
       reason: string;
       patchLog: PatchEnvelope[];
       eventLog: UiEvent[];

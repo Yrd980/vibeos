@@ -47,7 +47,7 @@ export function fullDocumentToPatchStream(
 }
 
 export function cacheReplayStream(sessionId: string, baseRevision: number, statusText: string, stale: boolean): PatchEnvelope[] {
-  return stagedEnvelopes(sessionId, `${sessionId}-cache-replay`, baseRevision, [
+  return stagedEnvelopes(sessionId, `${sessionId}-cache-status`, baseRevision, [
     [
       { op: 'setStatusText', text: statusText },
       { op: 'setStage', stage: stale ? 'stale' : 'ready' },

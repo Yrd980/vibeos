@@ -51,6 +51,8 @@ export function rememberIntent(shell: ShellState, intent: LaunchIntent) {
     intent,
     ...shell.recentIntents.filter((recent) => recent.rawQuery !== intent.rawQuery),
   ].slice(0, 12);
+  shell.searchResults = resolveSearchResults(shell.searchQuery, shell.recentIntents);
+  shell.selectedSearchIndex = 0;
 }
 
 function mergeSearchResults(localResults: SearchResult[], semanticResults: SearchResult[]) {

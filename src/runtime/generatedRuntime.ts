@@ -1031,7 +1031,7 @@ function classifyOldWebRoute(address: string, domain: string): OldWebRoute {
 function applyPatch(document: GeneratedDocument, op: PatchOperation) {
   switch (op.op) {
     case 'createBlock':
-      document.blocks[op.block.id] = op.block;
+      document.blocks[op.block.id] = cloneBlock(op.block);
       break;
     case 'insertBlock': {
       const parent = document.blocks[op.parentId];
@@ -1041,7 +1041,7 @@ function applyPatch(document: GeneratedDocument, op: PatchOperation) {
     }
     case 'replaceBlock':
       document.blocks[op.blockId] = {
-        ...op.block,
+        ...cloneBlock(op.block),
         id: op.blockId,
       };
       break;
@@ -1442,6 +1442,17 @@ function cloneDocument(document: GeneratedDocument): GeneratedDocument {
     selection: document.selection ? { ...document.selection } : undefined,
     focusRequest: document.focusRequest,
     scrollRequest: document.scrollRequest,
+  };
+}
+
+function cloneBlock(blockValue: GeneratedBlock): GeneratedBlock {
+  return {
+    ...blockValue,
+    props: { ...blockValue.props },
+    children: [...blockValue.children],
+    styleTokens: [...blockValue.styleTokens],
+    eventIntents: blockValue.eventIntents ? [...blockValue.eventIntents] : undefined,
+    state: blockValue.state ? { ...blockValue.state } : undefined,
   };
 }
 

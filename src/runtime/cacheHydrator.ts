@@ -1,4 +1,4 @@
-import { applyPatchEnvelope } from './generatedRuntime';
+import { applyPatchEnvelope, createEmptyDocument } from './generatedRuntime';
 import type { CacheMeta, GeneratedDocument, HydrationResult, LaunchIntent, PatchEnvelope, UiEvent } from './types';
 
 type CacheRecord = {
@@ -22,34 +22,54 @@ export function hydrateCache(intent: LaunchIntent): HydrationResult {
     return { kind: 'miss' };
   }
 
-  if (!isValidCachedDocument(record.checkpoint) || !Array.isArray(record.patchLog) || !Array.isArray(record.eventLog)) {
+  if (
+    !isValidCachedDocument(record.checkpoint) ||
+    !isReplayCheckpoint(record.checkpoint) ||
+    !Array.isArray(record.patchLog) ||
+    !Array.isArray(record.eventLog)
+  ) {
     return { kind: 'miss' };
   }
 
   const replay = replayPatchLog(record.checkpoint, record.patchLog);
-  const snapshot = replay.snapshot;
-  const patchLog = record.patchLog.slice(0, replay.acceptedCount);
+  if (replay.accepted.length === 0) {
+    return { kind: 'miss' };
+  }
+
+  const checkpoint = cloneDocument(record.checkpoint);
+  const replayedSnapshot = replay.snapshot;
+  const patchLog = replay.accepted;
   const eventLog = record.eventLog.filter(isValidUiEvent);
   const eventPatchLog = Array.isArray(record.eventPatchLog) ? record.eventPatchLog.filter(isValidPatchEnvelope) : [];
   const cacheMeta = cacheMetaFromRecord(record);
 
   if (record.safetyValidationVersion !== safetyValidationVersion || record.vocabularyVersion !== vocabularyVersion) {
-    return { kind: 'stale', snapshot, patchLog, eventLog, eventPatchLog, cacheMeta, reason: 'validation vocabulary changed' };
-  }
-
-  if (replay.acceptedCount < record.patchLog.length) {
     return {
-      kind: 'partial',
-      snapshot,
+      kind: 'stale',
+      snapshot: replayedSnapshot,
+      checkpoint,
       patchLog,
       eventLog,
       eventPatchLog,
       cacheMeta,
-      missingFromRevision: snapshot.revision + 1,
+      reason: 'validation vocabulary changed',
     };
   }
 
-  return { kind: 'hit', snapshot, patchLog, eventLog, eventPatchLog, cacheMeta };
+  if (replay.accepted.length < record.patchLog.filter(isValidPatchEnvelope).length || !isCompleteCachedDocument(replayedSnapshot)) {
+    return {
+      kind: 'partial',
+      snapshot: replayedSnapshot,
+      checkpoint,
+      patchLog,
+      eventLog,
+      eventPatchLog,
+      cacheMeta,
+      missingFromRevision: replayedSnapshot.revision + 1,
+    };
+  }
+
+  return { kind: 'hit', snapshot: replayedSnapshot, checkpoint, patchLog, eventLog, eventPatchLog, cacheMeta };
 }
 
 export function rememberCheckpoint(
@@ -59,9 +79,13 @@ export function rememberCheckpoint(
   eventLog: UiEvent[] = [],
   eventPatchLog: PatchEnvelope[] = [],
 ) {
+  const checkpoint = createCheckpointDocument(document);
+  const canonicalPatchLog = patchLog.filter((envelope) => !isCacheStatusEnvelope(envelope));
+  const replay = replayPatchLog(checkpoint, canonicalPatchLog);
+  const hasReplayableConstruction = replay.accepted.length > 0 && replay.snapshot.revision === document.revision;
   const record: CacheRecord = {
-    checkpoint: document,
-    patchLog: patchLog.filter((envelope) => envelope.baseRevision >= document.revision).slice(0, 80),
+    checkpoint: hasReplayableConstruction ? checkpoint : cloneDocument(document),
+    patchLog: hasReplayableConstruction ? replay.accepted.slice(-80) : [],
     eventLog: eventLog.filter(isValidUiEvent).slice(-80),
     eventPatchLog: eventPatchLog.filter(isValidPatchEnvelope).slice(-80),
     promptSummary: intent.prompt.slice(0, 160),
@@ -106,8 +130,7 @@ function isValidCachedDocument(document: GeneratedDocument) {
   return (
     typeof document.documentId === 'string' &&
     typeof document.revision === 'number' &&
-    document.revision > 0 &&
-    (document.stage === 'ready' || document.stage === 'stale') &&
+    document.revision >= 0 &&
     typeof document.rootBlockId === 'string' &&
     Boolean(document.blocks?.[document.rootBlockId]) &&
     Object.keys(document.blocks).length <= 120 &&
@@ -116,19 +139,25 @@ function isValidCachedDocument(document: GeneratedDocument) {
 }
 
 function replayPatchLog(checkpoint: GeneratedDocument, patchLog: PatchEnvelope[]) {
-  let snapshot = checkpoint;
-  let acceptedCount = 0;
-  const pending = patchLog.filter((envelope) => envelope.baseRevision >= checkpoint.revision);
+  let snapshot = cloneDocument(checkpoint);
+  const accepted: PatchEnvelope[] = [];
+  let sessionId: string | undefined;
+  let lastSeq = 0;
 
-  for (const envelope of pending) {
+  for (const envelope of patchLog.filter(isValidPatchEnvelope)) {
+    if (envelope.baseRevision < snapshot.revision) continue;
+    if (sessionId && envelope.sessionId !== sessionId) break;
+    if (envelope.seq <= lastSeq) break;
     if (!isPatchEnvelopeForDocument(snapshot, envelope)) break;
     const next = applyPatchEnvelope(snapshot, envelope);
     if (next === snapshot) break;
     snapshot = next;
-    acceptedCount += 1;
+    sessionId = envelope.sessionId;
+    lastSeq = envelope.seq;
+    accepted.push(cloneEnvelope(envelope));
   }
 
-  return { snapshot, acceptedCount };
+  return { snapshot, accepted };
 }
 
 function cacheMetaFromRecord(record: CacheRecord): CacheMeta {
@@ -148,6 +177,34 @@ function isPatchEnvelopeForDocument(document: GeneratedDocument, envelope: Patch
     envelope.baseRevision === document.revision &&
     envelope.resultRevision === document.revision + 1
   );
+}
+
+function isCompleteCachedDocument(document: GeneratedDocument) {
+  return (
+    isValidCachedDocument(document) &&
+    (document.stage === 'ready' || document.stage === 'stale') &&
+    document.revision > 0
+  );
+}
+
+function isReplayCheckpoint(document: GeneratedDocument) {
+  return document.revision === 0 && document.stage === 'booting';
+}
+
+function createCheckpointDocument(document: GeneratedDocument) {
+  return createEmptyDocument(document.documentId, document.appIdentity.title);
+}
+
+function isCacheStatusEnvelope(envelope: PatchEnvelope) {
+  return envelope.streamId.endsWith('-cache-status');
+}
+
+function cloneDocument(document: GeneratedDocument): GeneratedDocument {
+  return JSON.parse(JSON.stringify(document)) as GeneratedDocument;
+}
+
+function cloneEnvelope(envelope: PatchEnvelope): PatchEnvelope {
+  return JSON.parse(JSON.stringify(envelope)) as PatchEnvelope;
 }
 
 function isValidPatchEnvelope(value: unknown): value is PatchEnvelope {
